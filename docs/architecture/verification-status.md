@@ -75,6 +75,7 @@ These features work computationally but have gaps in formal proofs:
 | `log` Taylor model | `tmLog_correct` incomplete | Low - basic interval verified |
 | `sinc` derivative | Missing `Differentiable ℝ Real.sinc` | Low - exotic function |
 | `erf` derivative | Missing `Differentiable ℝ Real.erf` | Low - exotic function |
+| `interval_unique_root` | `checkNewtonContracts` not computable | Medium - tactic unusable |
 
 ## Finding Sorries
 

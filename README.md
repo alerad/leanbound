@@ -37,13 +37,16 @@ import LeanBound.Tactic.Discovery
 
 open LeanBound.Core
 
--- Define intervals
+-- Prove bounds on transcendentals using natural Set.Icc syntax
+example : ∀ x ∈ Set.Icc (0 : ℝ) 1, Real.exp x ≤ 3 := by interval_bound 15
+example : ∀ x ∈ Set.Icc (0 : ℝ) 1, Real.sin x ≤ 1 := by interval_bound
+example : ∀ x ∈ Set.Icc (0 : ℝ) 1, 0 ≤ Real.exp x := by interval_bound
+
+-- Or with explicit IntervalRat for more control
 def I01 : IntervalRat := ⟨0, 1, by norm_num⟩
 def I12 : IntervalRat := ⟨1, 2, by norm_num⟩
 
--- Prove upper bounds on transcendentals
 example : ∀ x ∈ I01, Real.exp x ≤ (3 : ℚ) := by interval_bound 15
-example : ∀ x ∈ I01, Real.sin x ≤ (1 : ℚ) := by interval_bound
 
 -- Prove root existence (√2) via sign change
 example : ∃ x ∈ I12, Expr.eval (fun _ => x)

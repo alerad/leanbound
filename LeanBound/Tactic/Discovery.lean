@@ -86,18 +86,18 @@ def parseExistentialGoal (goalType : Lean.Expr) : MetaM (Option ExistentialBound
         -- We reuse parseBoundGoal from IntervalAuto logic roughly
         if let some boundGoal ← LeanBound.Tactic.Auto.parseBoundGoal mBodyInst then
           match boundGoal with
-          | .forallGe _name interval func bound =>
+          | .forallGe _name intervalInfo func bound =>
              -- c ≤ f(x) where c is m (the fvar we introduced)
              -- The bound might be a coercion of m, so check if it contains m
              let boundContainsM := bound.containsFVar m.fvarId!
              if boundContainsM then
-               return some (.minimize _name interval func)
+               return some (.minimize _name intervalInfo.intervalRat func)
              else return none
-          | .forallLe _name interval func bound =>
+          | .forallLe _name intervalInfo func bound =>
              -- f(x) ≤ c where c is m
              let boundContainsM := bound.containsFVar m.fvarId!
              if boundContainsM then
-               return some (.maximize _name interval func)
+               return some (.maximize _name intervalInfo.intervalRat func)
              else return none
           | _ => return none
         else return none

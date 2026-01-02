@@ -57,31 +57,36 @@ simplified = lf.simplify(expr)  # Returns const(5)
 ### Proving Bounds
 
 ```lean
-import LeanBound.Tactic.Interval
+import LeanBound.Tactic.IntervalAuto
 
--- interval_bound analyzes the goal and applies the right tactic
-example : ∀ x ∈ Set.Icc 0 1, x^2 + Real.sin x ≤ 2 := by
-  interval_bound
+open LeanBound.Core
+
+-- Use natural Set.Icc syntax with integer bounds
+example : ∀ x ∈ Set.Icc (0 : ℝ) 1, Real.exp x ≤ 3 := by interval_bound 15
+example : ∀ x ∈ Set.Icc (0 : ℝ) 1, Real.sin x ≤ 1 := by interval_bound
+example : ∀ x ∈ Set.Icc (0 : ℝ) 1, 0 ≤ Real.exp x := by interval_bound
 
 -- Lower bounds work too
-example : ∀ x ∈ Set.Icc 0 1, 0 ≤ x^2 := by
-  interval_bound
+example : ∀ x ∈ Set.Icc (0 : ℝ) 1, 0 ≤ x * x := by interval_bound
+
+-- Or use explicit IntervalRat for more control
+def I01 : IntervalRat := ⟨0, 1, by norm_num⟩
+example : ∀ x ∈ I01, Real.exp x ≤ (3 : ℚ) := by interval_bound 15
 ```
 
 ### Proving Root Existence
 
 ```lean
+import LeanBound.Tactic.Discovery
+
+open LeanBound.Core
+
+def I12 : IntervalRat := ⟨1, 2, by norm_num⟩
+
 -- Prove √2 exists via sign change
-example : ∃ x ∈ Set.Icc 1 2, x^2 - 2 = 0 := by
+example : ∃ x ∈ I12, Expr.eval (fun _ => x)
+    (Expr.add (Expr.mul (Expr.var 0) (Expr.var 0)) (Expr.neg (Expr.const 2))) = 0 := by
   interval_roots
-```
-
-### Proving Root Uniqueness
-
-```lean
--- Prove √2 is unique via Newton contraction
-example : ∃! x ∈ Set.Icc 1 2, x^2 - 2 = 0 := by
-  interval_unique_root
 ```
 
 ### Discovery Commands
@@ -105,6 +110,8 @@ For more control, use the certificate API directly:
 ```lean
 import LeanBound.Numerics.Certificate
 
+open LeanBound.Core LeanBound.Numerics LeanBound.Numerics.Certificate
+
 def exprXSq : Expr := Expr.mul (Expr.var 0) (Expr.var 0)
 
 def exprXSq_core : ExprSupportedCore exprXSq :=
@@ -113,6 +120,6 @@ def exprXSq_core : ExprSupportedCore exprXSq :=
 def I01 : IntervalRat := ⟨0, 1, by norm_num⟩
 
 -- Use native_decide to verify computationally
-theorem xsq_le_one : ∀ x ∈ I01, Expr.eval (fun _ => x) exprXSq ≤ 1 := by
-  interval_le exprXSq, exprXSq_core, I01, 1
+theorem xsq_le_one : ∀ x ∈ I01, Expr.eval (fun _ => x) exprXSq ≤ (1 : ℚ) :=
+  verify_upper_bound exprXSq exprXSq_core I01 1 {} (by native_decide)
 ```

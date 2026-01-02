@@ -474,6 +474,32 @@ theorem verify_upper_bound_smart (e : Expr) (hsupp : ExprSupportedCore e)
       · -- Neither increasing nor decreasing => impossible since h_cert = true
         exact absurd h_cert Bool.false_ne_true
 
+/-! ### Set.Icc Bridge Theorems
+
+These theorems bridge between IntervalRat-based proofs and Set.Icc goals,
+allowing tactics to work with the more natural Set.Icc syntax.
+-/
+
+/-- Bridge from IntervalRat proof to Set.Icc upper bound goal -/
+theorem verify_upper_bound_Icc (e : Expr) (hsupp : ExprSupportedCore e)
+    (lo hi : ℚ) (hle : lo ≤ hi) (c : ℚ) (cfg : EvalConfig)
+    (h_cert : checkUpperBoundSmart e ⟨lo, hi, hle⟩ c cfg = true) :
+    ∀ x ∈ Set.Icc (lo : ℝ) (hi : ℝ), Expr.eval (fun _ => x) e ≤ c := by
+  intro x hx
+  have := verify_upper_bound_smart e hsupp ⟨lo, hi, hle⟩ c cfg h_cert
+  apply this
+  rwa [IntervalRat.mem_iff_mem_Icc]
+
+/-- Bridge from IntervalRat proof to Set.Icc lower bound goal -/
+theorem verify_lower_bound_Icc (e : Expr) (hsupp : ExprSupportedCore e)
+    (lo hi : ℚ) (hle : lo ≤ hi) (c : ℚ) (cfg : EvalConfig)
+    (h_cert : checkLowerBoundSmart e ⟨lo, hi, hle⟩ c cfg = true) :
+    ∀ x ∈ Set.Icc (lo : ℝ) (hi : ℝ), c ≤ Expr.eval (fun _ => x) e := by
+  intro x hx
+  have := verify_lower_bound_smart e hsupp ⟨lo, hi, hle⟩ c cfg h_cert
+  apply this
+  rwa [IntervalRat.mem_iff_mem_Icc]
+
 end LeanBound.Numerics.Certificate
 
 /-! ## Global Optimization Certificates

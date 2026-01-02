@@ -65,6 +65,20 @@ instance : Membership ℝ IntervalRat where
 theorem mem_def (x : ℝ) (I : IntervalRat) : x ∈ I ↔ (I.lo : ℝ) ≤ x ∧ x ≤ (I.hi : ℝ) :=
   Iff.rfl
 
+/-- Membership in IntervalRat is the same as membership in Set.Icc -/
+theorem mem_iff_mem_Icc (x : ℝ) (I : IntervalRat) : x ∈ I ↔ x ∈ Set.Icc (I.lo : ℝ) (I.hi : ℝ) := by
+  simp only [mem_def, Set.mem_Icc]
+
+/-- Universal quantifier over IntervalRat equals universal over Set.Icc -/
+theorem forall_mem_iff_forall_Icc {P : ℝ → Prop} (I : IntervalRat) :
+    (∀ x ∈ I, P x) ↔ (∀ x ∈ Set.Icc (I.lo : ℝ) (I.hi : ℝ), P x) := by
+  constructor <;> intro h x hx <;> apply h <;> simp only [mem_iff_mem_Icc] at hx ⊢ <;> exact hx
+
+/-- Existence in IntervalRat equals existence in Set.Icc -/
+theorem exists_mem_iff_exists_Icc {P : ℝ → Prop} (I : IntervalRat) :
+    (∃ x ∈ I, P x) ↔ (∃ x ∈ Set.Icc (I.lo : ℝ) (I.hi : ℝ), P x) := by
+  constructor <;> intro ⟨x, hx, hp⟩ <;> exact ⟨x, by simp only [mem_iff_mem_Icc] at hx ⊢; exact hx, hp⟩
+
 /-- Create an interval from a single rational -/
 def singleton (q : ℚ) : IntervalRat := ⟨q, q, le_refl q⟩
 

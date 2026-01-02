@@ -33,19 +33,21 @@ roots = lf.find_roots(x**2 - 2, {'x': (1, 2)})
 ### Lean
 
 ```lean
-import LeanBound.Tactic.Interval
+import LeanBound.Tactic.IntervalAuto
+import LeanBound.Tactic.Discovery
 
--- Prove upper bounds automatically
-example : ∀ x ∈ Set.Icc 0 1, x^2 + Real.sin x ≤ 2 := by
-  interval_bound
+open LeanBound.Core
 
--- Prove root existence (√2)
-example : ∃ x ∈ Set.Icc 1 2, x^2 - 2 = 0 := by
+-- Prove bounds using natural Set.Icc syntax
+example : ∀ x ∈ Set.Icc (0 : ℝ) 1, Real.exp x ≤ 3 := by interval_bound 15
+example : ∀ x ∈ Set.Icc (0 : ℝ) 1, Real.sin x ≤ 1 := by interval_bound
+example : ∀ x ∈ Set.Icc (0 : ℝ) 1, 0 ≤ Real.exp x := by interval_bound
+
+-- Prove root existence (√2) via sign change
+def I12 : IntervalRat := ⟨1, 2, by norm_num⟩
+example : ∃ x ∈ I12, Expr.eval (fun _ => x)
+    (Expr.add (Expr.mul (Expr.var 0) (Expr.var 0)) (Expr.neg (Expr.const 2))) = 0 := by
   interval_roots
-
--- Prove root uniqueness via Newton contraction
-example : ∃! x ∈ Set.Icc 1 2, x^2 - 2 = 0 := by
-  interval_unique_root
 ```
 
 ## Architecture

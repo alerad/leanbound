@@ -48,21 +48,165 @@ open LeanBound.Core
 open LeanBound.Numerics
 open LeanBound.Numerics.Certificate
 
+/-! ## Rational Extraction Helpers
+
+Utilities for extracting rational numbers from Lean expressions representing
+real number literals or coercions.
+-/
+
+/-- Extract a natural number from a Nat literal expression -/
+private def extractNatLit (e : Lean.Expr) : MetaM (Option ℕ) := do
+  -- Try raw literal first
+  if let some n := e.rawNatLit? then
+    return some n
+  -- Try after reduction
+  let e ← whnf e
+  if let some n := e.rawNatLit? then
+    return some n
+  else return none
+
+/-- Extract an integer from an Int literal expression -/
+private def extractIntLit (e : Lean.Expr) : MetaM (Option ℤ) := do
+  let e ← whnf e
+  let fn := e.getAppFn
+  let args := e.getAppArgs
+  -- Int.ofNat n
+  if fn.isConstOf ``Int.ofNat then
+    if args.size > 0 then
+      if let some n ← extractNatLit args[0]! then
+        return some (n : ℤ)
+    return none
+  -- Int.negSucc n (represents -(n+1))
+  else if fn.isConstOf ``Int.negSucc then
+    if args.size > 0 then
+      if let some n ← extractNatLit args[0]! then
+        return some (-(n + 1 : ℤ))
+    return none
+  else return none
+
+/-- Extract a rational from a Rat expression -/
+private def extractRatFromRat (e : Lean.Expr) : MetaM (Option ℚ) := do
+  let e ← whnf e
+  let fn := e.getAppFn
+  let args := e.getAppArgs
+
+  -- Check for Rat.ofInt
+  if fn.isConstOf ``Rat.ofInt then
+    if args.size > 0 then
+      if let some i ← extractIntLit args[0]! then
+        return some (i : ℚ)
+    return none
+
+  -- Check for OfNat.ofNat on Rat
+  else if fn.isConstOf ``OfNat.ofNat then
+    if args.size >= 2 then
+      if let some n ← extractNatLit args[1]! then
+        return some (n : ℚ)
+    return none
+
+  -- Try to match Rat.mk' num den ...
+  else if fn.isConstOf ``Rat.mk' then
+    return none  -- TODO: implement if needed
+
+  else return none
+
+/-- Try to extract a rational value from a Lean expression that represents a real number.
+    Handles: Rat.cast, OfNat.ofNat, Nat.cast, Int.cast, negations, and divisions. -/
+partial def extractRatFromReal (e : Lean.Expr) : MetaM (Option ℚ) := do
+  -- First try without whnf (preserves structure like OfNat.ofNat)
+  if let some q ← tryExtract e then
+    return some q
+  -- Then try with whnf
+  let e ← whnf e
+  tryExtract e
+where
+  tryExtract (e : Lean.Expr) : MetaM (Option ℚ) := do
+    let fn := e.getAppFn
+    let args := e.getAppArgs
+
+    -- Case 1: Rat.cast q or RatCast.ratCast q
+    if fn.isConstOf ``Rat.cast || fn.isConstOf ``RatCast.ratCast then
+      if args.size > 0 then
+        return ← extractRatFromRat args.back!
+      else return none
+
+    -- Case 2: OfNat.ofNat (for numeric literals like 2 : ℝ)
+    else if fn.isConstOf ``OfNat.ofNat then
+      -- OfNat.ofNat : {α : Type} → (n : ℕ) → [OfNat α n] → α
+      -- args[1] is the natural number
+      if args.size >= 2 then
+        if let some n ← extractNatLit args[1]! then
+          return some (n : ℚ)
+      return none
+
+    -- Case 3: Nat.cast n
+    else if fn.isConstOf ``Nat.cast || fn.isConstOf ``NatCast.natCast then
+      if args.size > 0 then
+        if let some n ← extractNatLit args.back! then
+          return some (n : ℚ)
+      return none
+
+    -- Case 4: Int.cast i
+    else if fn.isConstOf ``Int.cast || fn.isConstOf ``IntCast.intCast then
+      if args.size > 0 then
+        if let some i ← extractIntLit args.back! then
+          return some (i : ℚ)
+      return none
+
+    -- Case 5: Neg.neg x (for negative numbers)
+    else if fn.isConstOf ``Neg.neg then
+      if args.size > 0 then
+        if let some q ← extractRatFromReal args.back! then
+          return some (-q)
+      return none
+
+    -- Case 6: HDiv.hDiv a b (for fractions like 1/2)
+    else if fn.isConstOf ``HDiv.hDiv then
+      if args.size >= 6 then  -- HDiv.hDiv has 6 args: α β γ inst a b
+        if let some a ← extractRatFromReal args[4]! then
+          if let some b ← extractRatFromReal args[5]! then
+            if b ≠ 0 then
+              return some (a / b)
+      return none
+
+    else return none
+
+/-- Build an IntervalRat expression from two rational expressions and their Lean representations -/
+def mkIntervalRat (loExpr hiExpr : Lean.Expr) (lo hi : ℚ) : MetaM Lean.Expr := do
+  if lo > hi then
+    throwError "Cannot create interval: lo ({lo}) > hi ({hi})"
+  -- Build ⟨lo, hi, proof⟩
+  -- The proof is `lo ≤ hi` which we can close with `by norm_num` or `by decide`
+  let proofType ← mkAppM ``LE.le #[loExpr, hiExpr]
+
+  -- Create the proof using decide (works for concrete rationals)
+  let proof ← mkDecideProof proofType
+
+  mkAppM ``IntervalRat.mk #[loExpr, hiExpr, proof]
+
 /-! ## Goal Analysis
 
 Utilities for analyzing the goal structure to determine which theorem to apply.
 -/
 
+/-- Information about interval source -/
+structure IntervalInfo where
+  /-- The IntervalRat expression to use in proofs -/
+  intervalRat : Lean.Expr
+  /-- If converted from Set.Icc, contains (lo, hi, loRatExpr, hiRatExpr, leProof, origLoExpr, origHiExpr) -/
+  fromSetIcc : Option (ℚ × ℚ × Lean.Expr × Lean.Expr × Lean.Expr × Lean.Expr × Lean.Expr) := none
+  deriving Repr
+
 /-- Result of analyzing a bound goal -/
 inductive BoundGoal where
   /-- ∀ x ∈ I, f x ≤ c -/
-  | forallLe (varName : Name) (interval : Lean.Expr) (func : Lean.Expr) (bound : Lean.Expr)
+  | forallLe (varName : Name) (interval : IntervalInfo) (func : Lean.Expr) (bound : Lean.Expr)
   /-- ∀ x ∈ I, c ≤ f x -/
-  | forallGe (varName : Name) (interval : Lean.Expr) (func : Lean.Expr) (bound : Lean.Expr)
+  | forallGe (varName : Name) (interval : IntervalInfo) (func : Lean.Expr) (bound : Lean.Expr)
   /-- ∀ x ∈ I, f x < c -/
-  | forallLt (varName : Name) (interval : Lean.Expr) (func : Lean.Expr) (bound : Lean.Expr)
+  | forallLt (varName : Name) (interval : IntervalInfo) (func : Lean.Expr) (bound : Lean.Expr)
   /-- ∀ x ∈ I, c < f x -/
-  | forallGt (varName : Name) (interval : Lean.Expr) (func : Lean.Expr) (bound : Lean.Expr)
+  | forallGt (varName : Name) (interval : IntervalInfo) (func : Lean.Expr) (bound : Lean.Expr)
   deriving Repr
 
 /-- Try to parse a goal as a bound goal -/
@@ -151,19 +295,56 @@ def parseBoundGoal (goal : Lean.Expr) : MetaM (Option BoundGoal) := do
 
 where
   /-- Extract the interval from a membership expression -/
-  extractInterval (memTy : Lean.Expr) (x : Lean.Expr) : MetaM (Option Lean.Expr) := do
+  extractInterval (memTy : Lean.Expr) (x : Lean.Expr) : MetaM (Option IntervalInfo) := do
     -- Try direct Membership.mem match
     -- Membership.mem : {α : Type u_1} → {γ : outParam (Type u_2)} → [self : Membership α γ] → γ → α → Prop
     -- Note: The mem function takes (container, element), but notation x ∈ I displays as element ∈ container
     match_expr memTy with
     | Membership.mem _ _ _ interval xExpr =>
       -- Check if xExpr matches x (might be the same or definitionally equal)
-      if ← isDefEq xExpr x then return some interval else return none
+      if ← isDefEq xExpr x then
+        -- Check if interval is already an IntervalRat
+        let intervalTy ← inferType interval
+        if intervalTy.isConstOf ``IntervalRat then
+          return some { intervalRat := interval }
+        -- Check if interval is Set.Icc lo hi
+        else if let some info ← tryConvertSetIcc interval then
+          return some info
+        else
+          return some { intervalRat := interval }  -- Return as-is, let type checking fail later if wrong
+      else return none
     | _ =>
       -- The memTy might be definitionally expanded - check if it's a conjunction
       -- For IntervalRat: x ∈ I unfolds to (I.lo : ℝ) ≤ x ∧ x ≤ (I.hi : ℝ)
       -- This is tricky to reverse, so let's try looking at the original unexpanded form
       return none
+
+  /-- Try to convert a Set.Icc expression to an IntervalRat with full info -/
+  tryConvertSetIcc (interval : Lean.Expr) : MetaM (Option IntervalInfo) := do
+    -- Don't use whnf here as it may destroy the Set.Icc structure
+    let fn := interval.getAppFn
+    let args := interval.getAppArgs
+    -- Set.Icc : {α : Type*} → [Preorder α] → α → α → Set α
+    -- So args are: [α, inst, lo, hi]
+    if fn.isConstOf ``Set.Icc then
+      if args.size >= 4 then
+        let loExpr := args[2]!
+        let hiExpr := args[3]!
+        -- Try to extract rational values
+        if let some lo ← extractRatFromReal loExpr then
+          if let some hi ← extractRatFromReal hiExpr then
+            -- Build the IntervalRat
+            let loRatExpr := toExpr lo
+            let hiRatExpr := toExpr hi
+            -- Build proof that lo ≤ hi
+            let leProofTy ← mkAppM ``LE.le #[loRatExpr, hiRatExpr]
+            let leProof ← mkDecideProof leProofTy
+            let intervalRat ← mkAppM ``IntervalRat.mk #[loRatExpr, hiRatExpr, leProof]
+            return some {
+              intervalRat := intervalRat
+              fromSetIcc := some (lo, hi, loRatExpr, hiRatExpr, leProof, loExpr, hiExpr)
+            }
+    return none
 
 /-! ## Main Tactic Implementation -/
 
@@ -202,6 +383,7 @@ where
     -- 1. A direct ℚ literal
     -- 2. A coercion ↑q where q : ℚ (as Rat.cast)
     -- 3. A coercion instance application (Real.instRatCast.1 q)
+    -- 4. A numeric literal like 2 : ℝ (OfNat.ofNat)
     let fn := bound.getAppFn
     let args := bound.getAppArgs
 
@@ -226,17 +408,21 @@ where
         if boundTy.isConstOf ``Rat then
           return bound
         else
-          -- Last resort: try to see if this is a reducible form
-          let boundReduced ← whnf bound
-          let fnReduced := boundReduced.getAppFn
-          if fnReduced.isConstOf ``Rat.cast || fnReduced.isConstOf ``RatCast.ratCast then
-            let argsReduced := boundReduced.getAppArgs
-            if argsReduced.size > 0 then
-              return argsReduced.back!
-            else
-              throwError "Unexpected reduced coercion structure"
+          -- Try to extract a rational value using our helper
+          if let some q ← extractRatFromReal bound then
+            return toExpr q
           else
-            throwError "Cannot extract rational from bound: {bound} (type: {boundTy})"
+            -- Last resort: try to see if this is a reducible form
+            let boundReduced ← whnf bound
+            let fnReduced := boundReduced.getAppFn
+            if fnReduced.isConstOf ``Rat.cast || fnReduced.isConstOf ``RatCast.ratCast then
+              let argsReduced := boundReduced.getAppArgs
+              if argsReduced.size > 0 then
+                return argsReduced.back!
+              else
+                throwError "Unexpected reduced coercion structure"
+            else
+              throwError "Cannot extract rational from bound: {bound} (type: {boundTy})"
 
   /-- Try to extract AST from an Expr.eval application, or reify if it's a raw expression -/
   getAst (func : Lean.Expr) : TacticM Lean.Expr := do
@@ -258,7 +444,7 @@ where
         reify func
 
   /-- Prove ∀ x ∈ I, f x ≤ c -/
-  proveForallLe (goal : MVarId) (interval func bound : Lean.Expr)
+  proveForallLe (goal : MVarId) (intervalInfo : IntervalInfo) (func bound : Lean.Expr)
       (taylorDepth : Nat) : TacticM Unit := do
     goal.withContext do
       -- 1. Get AST (either from Expr.eval or by reifying)
@@ -273,20 +459,84 @@ where
       -- 4. Build config expression
       let cfgExpr ← mkAppM ``EvalConfig.mk #[toExpr taylorDepth]
 
-      -- 5. Apply verify_upper_bound_smart theorem (uses monotonicity for tighter bounds)
-      let proof ← mkAppM ``verify_upper_bound_smart #[ast, supportProof, interval, boundRat, cfgExpr]
+      -- 5. Apply appropriate theorem based on interval source
+      match intervalInfo.fromSetIcc with
+        | some (_lo, _hi, loRatExpr, hiRatExpr, leProof, _origLo, _origHi) =>
+          -- For Set.Icc goals, we need to handle cast differences and Expr.eval
+          let proof ← mkAppM ``verify_upper_bound_Icc #[ast, supportProof, loRatExpr, hiRatExpr, leProof, boundRat, cfgExpr]
 
-      -- 6. Apply the proof - this leaves the certificate check as a goal
-      let newGoals ← goal.apply proof
-      setGoals newGoals
+          -- Try direct apply first
+          setGoals [goal]
+          try
+            let newGoals ← goal.apply proof
+            setGoals newGoals
+            for g in newGoals do
+              setGoals [g]
+              evalTactic (← `(tactic| native_decide))
+          catch _ =>
+            -- Apply failed, so we need to use convert
+            -- First, build the certificate proof using native_decide
+            setGoals [goal]
 
-      -- 7. Solve remaining goals with native_decide
-      for g in newGoals do
-        setGoals [g]
-        evalTactic (← `(tactic| native_decide))
+            -- Build the certificate type and prove it
+            let intervalRat ← mkAppM ``IntervalRat.mk #[loRatExpr, hiRatExpr, leProof]
+            let certTy ← mkAppM ``Eq #[
+              ← mkAppM ``LeanBound.Numerics.Certificate.checkUpperBoundSmart #[ast, intervalRat, boundRat, cfgExpr],
+              mkConst ``Bool.true
+            ]
+            let certProof ← mkDecideProof certTy
+
+            -- Apply the theorem with the certificate to get the conclusion
+            let conclusionProof ← mkAppM' proof #[certProof]
+            let conclusionTerm ← Lean.Elab.Term.exprToSyntax conclusionProof
+
+            -- Now use convert on the conclusion (not the full proof)
+            evalTactic (← `(tactic| convert ($conclusionTerm) using 3))
+
+            -- Close side goals (usually equality goals for Set.Icc and bounds)
+            let goals ← getGoals
+            for g in goals do
+              setGoals [g]
+              let closed ← try
+                evalTactic (← `(tactic| rfl))
+                pure true
+              catch _ => pure false
+              if closed then continue
+              let closed ← try
+                -- For Set.Icc equality, use congr_arg with norm_num
+                evalTactic (← `(tactic| congr 1 <;> norm_num))
+                pure true
+              catch _ => pure false
+              if closed then continue
+              let closed ← try
+                evalTactic (← `(tactic| norm_cast))
+                pure true
+              catch _ => pure false
+              if closed then continue
+              let closed ← try
+                evalTactic (← `(tactic| norm_num))
+                pure true
+              catch _ => pure false
+              if closed then continue
+              let closed ← try
+                evalTactic (← `(tactic| simp only [Rat.cast_natCast, Rat.cast_intCast, Nat.cast_ofNat, Int.cast_ofNat, NNRat.cast_natCast]))
+                pure true
+              catch _ => pure false
+              if closed then continue
+              -- Last resort - leave the goal for the user but warn
+              logWarning m!"interval_bound: Could not close side goal: {← g.getType}"
+
+        | none =>
+          -- Direct IntervalRat goal
+          let proof ← mkAppM ``verify_upper_bound_smart #[ast, supportProof, intervalInfo.intervalRat, boundRat, cfgExpr]
+          let newGoals ← goal.apply proof
+          setGoals newGoals
+          for g in newGoals do
+            setGoals [g]
+            evalTactic (← `(tactic| native_decide))
 
   /-- Prove ∀ x ∈ I, c ≤ f x -/
-  proveForallGe (goal : MVarId) (interval func bound : Lean.Expr)
+  proveForallGe (goal : MVarId) (intervalInfo : IntervalInfo) (func bound : Lean.Expr)
       (taylorDepth : Nat) : TacticM Unit := do
     goal.withContext do
       let ast ← getAst func
@@ -294,17 +544,69 @@ where
       let supportProof ← mkSupportedCoreProof ast
       let cfgExpr ← mkAppM ``EvalConfig.mk #[toExpr taylorDepth]
 
-      -- Use smart checker with monotonicity support
-      let proof ← mkAppM ``verify_lower_bound_smart #[ast, supportProof, interval, boundRat, cfgExpr]
-      let newGoals ← goal.apply proof
-      setGoals newGoals
+      -- Handle based on interval source
+      match intervalInfo.fromSetIcc with
+        | some (_lo, _hi, loRatExpr, hiRatExpr, leProof, _origLo, _origHi) =>
+          let proof ← mkAppM ``verify_lower_bound_Icc #[ast, supportProof, loRatExpr, hiRatExpr, leProof, boundRat, cfgExpr]
 
-      for g in newGoals do
-        setGoals [g]
-        evalTactic (← `(tactic| native_decide))
+          -- Try direct apply first
+          setGoals [goal]
+          try
+            let newGoals ← goal.apply proof
+            setGoals newGoals
+            for g in newGoals do
+              setGoals [g]
+              evalTactic (← `(tactic| native_decide))
+          catch _ =>
+            -- Apply failed, use convert
+            setGoals [goal]
+            let intervalRat ← mkAppM ``IntervalRat.mk #[loRatExpr, hiRatExpr, leProof]
+            let certTy ← mkAppM ``Eq #[
+              ← mkAppM ``LeanBound.Numerics.Certificate.checkLowerBoundSmart #[ast, intervalRat, boundRat, cfgExpr],
+              mkConst ``Bool.true
+            ]
+            let certProof ← mkDecideProof certTy
+            let conclusionProof ← mkAppM' proof #[certProof]
+            let conclusionTerm ← Lean.Elab.Term.exprToSyntax conclusionProof
+            evalTactic (← `(tactic| convert ($conclusionTerm) using 3))
+
+            -- Close side goals
+            let goals ← getGoals
+            for g in goals do
+              setGoals [g]
+              let closed ← try
+                evalTactic (← `(tactic| rfl))
+                pure true
+              catch _ => pure false
+              if closed then continue
+              let closed ← try
+                evalTactic (← `(tactic| congr 1 <;> norm_num))
+                pure true
+              catch _ => pure false
+              if closed then continue
+              let closed ← try
+                evalTactic (← `(tactic| norm_cast))
+                pure true
+              catch _ => pure false
+              if closed then continue
+              let closed ← try
+                evalTactic (← `(tactic| norm_num))
+                pure true
+              catch _ => pure false
+              if closed then continue
+              logWarning m!"interval_bound: Could not close side goal: {← g.getType}"
+
+        | none =>
+          -- Direct IntervalRat goal
+          let proof ← mkAppM ``verify_lower_bound_smart #[ast, supportProof, intervalInfo.intervalRat, boundRat, cfgExpr]
+          let newGoals ← goal.apply proof
+          setGoals newGoals
+          for g in newGoals do
+            setGoals [g]
+            evalTactic (← `(tactic| native_decide))
 
   /-- Prove ∀ x ∈ I, f x < c -/
-  proveForallLt (goal : MVarId) (interval func bound : Lean.Expr)
+  proveForallLt (goal : MVarId) (intervalInfo : IntervalInfo) (func bound : Lean.Expr)
       (taylorDepth : Nat) : TacticM Unit := do
     goal.withContext do
       let ast ← getAst func
@@ -312,16 +614,23 @@ where
       let supportProof ← mkSupportedCoreProof ast
       let cfgExpr ← mkAppM ``EvalConfig.mk #[toExpr taylorDepth]
 
-      let proof ← mkAppM ``verify_strict_upper_bound #[ast, supportProof, interval, boundRat, cfgExpr]
+      -- TODO: Add bridge theorem for strict bounds with Set.Icc
+      let proof ← mkAppM ``verify_strict_upper_bound #[ast, supportProof, intervalInfo.intervalRat, boundRat, cfgExpr]
       let newGoals ← goal.apply proof
       setGoals newGoals
 
       for g in newGoals do
         setGoals [g]
-        evalTactic (← `(tactic| native_decide))
+        try
+          evalTactic (← `(tactic| native_decide))
+        catch _ =>
+          try
+            evalTactic (← `(tactic| norm_cast))
+          catch _ =>
+            evalTactic (← `(tactic| simp only [Rat.cast_zero, Rat.cast_one, Rat.cast_intCast, Rat.cast_natCast]))
 
   /-- Prove ∀ x ∈ I, c < f x -/
-  proveForallGt (goal : MVarId) (interval func bound : Lean.Expr)
+  proveForallGt (goal : MVarId) (intervalInfo : IntervalInfo) (func bound : Lean.Expr)
       (taylorDepth : Nat) : TacticM Unit := do
     goal.withContext do
       let ast ← getAst func
@@ -329,13 +638,20 @@ where
       let supportProof ← mkSupportedCoreProof ast
       let cfgExpr ← mkAppM ``EvalConfig.mk #[toExpr taylorDepth]
 
-      let proof ← mkAppM ``verify_strict_lower_bound #[ast, supportProof, interval, boundRat, cfgExpr]
+      -- TODO: Add bridge theorem for strict bounds with Set.Icc
+      let proof ← mkAppM ``verify_strict_lower_bound #[ast, supportProof, intervalInfo.intervalRat, boundRat, cfgExpr]
       let newGoals ← goal.apply proof
       setGoals newGoals
 
       for g in newGoals do
         setGoals [g]
-        evalTactic (← `(tactic| native_decide))
+        try
+          evalTactic (← `(tactic| native_decide))
+        catch _ =>
+          try
+            evalTactic (← `(tactic| norm_cast))
+          catch _ =>
+            evalTactic (← `(tactic| simp only [Rat.cast_zero, Rat.cast_one, Rat.cast_intCast, Rat.cast_natCast]))
 
 /-! ## Tactic Syntax -/
 
