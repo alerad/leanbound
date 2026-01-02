@@ -242,11 +242,14 @@ noncomputable def atanhTaylorPoly (n : ℕ) : Polynomial ℚ :=
   ∑ i ∈ Finset.range (n + 1), Polynomial.C (atanhTaylorCoeffs n i) * Polynomial.X ^ i
 
 /-- Remainder bound for atanh: for |x| ≤ r < 1,
-    |atanh(x) - T_n(x)| ≤ r^{n+1} / ((n+1) * (1 - r²)) -/
+    |atanh(x) - T_n(x)| ≤ r^{n+1} / (1 - r²)
+
+    Note: A tighter bound with an extra (n+1) factor in the denominator is mathematically
+    valid, but we use this looser bound to match what `atanh_series_remainder_bound` proves. -/
 noncomputable def atanhRemainderBound (domain : IntervalRat) (n : ℕ) : ℚ :=
   let r := max (|domain.lo|) (|domain.hi|)
   let r_safe := min r (99/100)
-  let denom := max ((1 - r_safe^2) * (n + 1)) (1/100 : ℚ)
+  let denom := max (1 - r_safe^2) (1/100 : ℚ)
   r_safe ^ (n + 1) / denom
 
 /-- Remainder bound for atanh is nonnegative -/
@@ -303,17 +306,131 @@ theorem atanh_series_remainder_bound {x : ℝ} (hx : |x| < 1) (n : ℕ) :
   -- Get the series representation
   have hseries := Real.atanh_hasSum hx
   -- Key facts about x
-  have hx_sq : x ^ 2 < 1 := by
-    have habs := abs_nonneg x
-    nlinarith [sq_nonneg x, sq_abs x]
+  have hx_sq : x ^ 2 < 1 := (sq_lt_one_iff_abs_lt_one x).mpr hx
   have h_denom_pos : 0 < 1 - x ^ 2 := by linarith
-  -- The polynomial evaluates to partial sum of odd terms
-  -- The remainder is bounded by geometric series tail
-  -- This requires connecting atanhTaylorCoeffs to the series index
-  -- For now, the full proof requires showing:
-  -- 1. The polynomial sum equals Σ_{k: 2k+1 ≤ n} x^(2k+1)/(2k+1)
-  -- 2. The tail Σ_{k: 2k+1 > n} |x|^(2k+1) ≤ |x|^(n+1) * Σ |x|^(2j) = |x|^(n+1)/(1-x²)
-  sorry
+  have hx_abs_sq : |x| ^ 2 < 1 := by rwa [sq_abs]
+  have hx_abs_nonneg : 0 ≤ |x| := abs_nonneg x
+  have hx_abs_le : |x| ≤ 1 := le_of_lt hx
+
+  -- Define the series term and the split point m
+  let term := fun k : ℕ => x ^ (2 * k + 1) / (2 * k + 1)
+  -- m = number of terms with 2k+1 ≤ n, i.e., k ≤ (n-1)/2
+  let m := (n + 1) / 2
+
+  -- Key: 2m ≥ n (so 2m+1 ≥ n+1)
+  have hm_bound : 2 * m ≥ n := by
+    simp only [m]
+    omega
+
+  -- Step 1: Show polynomial sum equals partial series sum up to m terms
+  have h_poly_eq_partial :
+      ∑ i ∈ Finset.range (n + 1), (atanhTaylorCoeffs n i : ℝ) * x ^ i =
+      ∑ k ∈ Finset.range m, term k := by
+    -- The polynomial has nonzero coefficients only at odd indices 2k+1 ≤ n
+    -- which corresponds to k < m = (n+1)/2
+    -- We rewrite LHS by filtering to odd terms and reindexing
+    have h_even_zero : ∀ i ∈ Finset.range (n + 1), ¬(i % 2 = 1) →
+        (atanhTaylorCoeffs n i : ℝ) * x ^ i = 0 := by
+      intro i hi hi_not_odd
+      have hi_range : i < n + 1 := Finset.mem_range.mp hi
+      unfold atanhTaylorCoeffs
+      have h_le : i ≤ n := Nat.lt_succ_iff.mp hi_range
+      simp only [h_le, ite_true]
+      simp only [hi_not_odd, ite_false, Rat.cast_zero, zero_mul]
+    -- Split sum into even and odd parts
+    conv_lhs =>
+      rw [← Finset.sum_filter_add_sum_filter_not (Finset.range (n + 1)) (fun i => i % 2 = 1)]
+    simp only [Finset.sum_eq_zero (fun i hi => h_even_zero i (Finset.mem_filter.mp hi).1
+      (Finset.mem_filter.mp hi).2), add_zero]
+    -- Reindex: odd i in [0, n] correspond to k in [0, m) where k = (i-1)/2, i = 2k+1
+    -- The bijection shows the polynomial sum equals the partial series sum
+    symm
+    apply Finset.sum_bij (i := fun k _ => 2 * k + 1)
+    -- hi: 2k+1 is in filter
+    case hi => intro k hk
+               simp only [Finset.mem_filter, Finset.mem_range] at hk ⊢
+               exact ⟨by omega, by omega⟩
+    -- h: terms match
+    case h => intro k hk
+              simp only [Finset.mem_range] at hk
+              have h_odd : (2 * k + 1) % 2 = 1 := by omega
+              have h_le : 2 * k + 1 ≤ n := by omega
+              unfold atanhTaylorCoeffs
+              have h_div : (2 * k + 1 - 1) / 2 = k := by omega
+              simp only [h_le, ite_true, h_odd, Nat.add_sub_cancel, h_div]
+              push_cast
+              have h_ne : (2 * (k : ℝ) + 1) ≠ 0 := by positivity
+              simp only [term]
+              field_simp
+    -- i_inj: injective
+    case i_inj => intro k₁ _ k₂ _ h; omega
+    -- i_surj: surjective
+    case i_surj => intro i hi
+                   simp only [Finset.mem_filter, Finset.mem_range] at hi
+                   exact ⟨(i - 1) / 2, Finset.mem_range.mpr (by omega), by omega⟩
+
+  -- Step 2: The remainder is the tail of the series starting at m
+  have h_summable := hseries.summable
+  have h_tail_summable : Summable fun k => term (k + m) := (summable_nat_add_iff m).mpr h_summable
+  have h_tail_eq : Real.atanh x - ∑ k ∈ Finset.range m, term k = ∑' k, term (k + m) := by
+    have h_split := h_summable.sum_add_tsum_nat_add m
+    -- h_split : (∑ i ∈ range m, term i) + ∑' i, term (i + m) = ∑' i, term i
+    have h_tsum_eq : ∑' i, term i = Real.atanh x := hseries.tsum_eq
+    linarith [h_split, h_tsum_eq]
+
+  rw [h_poly_eq_partial, h_tail_eq]
+
+  -- Step 3: Bound the tail by geometric series
+  -- |term (k + m)| = |x|^(2(k+m)+1) / (2(k+m)+1) ≤ |x|^(2(k+m)+1) ≤ |x|^(2m+1) * |x|^(2k)
+  let geo_term := fun k : ℕ => |x| ^ (2 * m + 1) * (|x| ^ 2) ^ k
+
+  have h_geo_summable : Summable geo_term := by
+    apply Summable.mul_left
+    exact summable_geometric_of_lt_one (sq_nonneg _) hx_abs_sq
+
+  have h_term_bound : ∀ k, |term (k + m)| ≤ geo_term k := by
+    intro k
+    simp only [term, geo_term]
+    rw [abs_div, abs_pow]
+    have h_pow_eq : |x| ^ (2 * (k + m) + 1) = |x| ^ (2 * m + 1) * (|x| ^ 2) ^ k := by
+      have : 2 * (k + m) + 1 = 2 * m + 1 + 2 * k := by ring
+      rw [this, pow_add, pow_mul]
+    rw [h_pow_eq]
+    -- The denominator |2*(k+m)+1| ≥ 1, so dividing makes the numerator smaller
+    have h_denom_pos' : (0 : ℝ) < 2 * (k + m : ℕ) + 1 := by positivity
+    have h_denom_ge_one : (1 : ℝ) ≤ |(2 : ℝ) * (k + m : ℕ) + 1| := by
+      rw [abs_of_pos h_denom_pos']
+      have hk : (0 : ℝ) ≤ k := Nat.cast_nonneg k
+      have hm : (0 : ℝ) ≤ m := Nat.cast_nonneg m
+      push_cast
+      linarith
+    calc |x| ^ (2 * m + 1) * (|x| ^ 2) ^ k / |(2 : ℝ) * (k + m : ℕ) + 1|
+        ≤ |x| ^ (2 * m + 1) * (|x| ^ 2) ^ k / 1 := by
+          apply div_le_div_of_nonneg_left _ (by positivity) h_denom_ge_one
+          positivity
+      _ = |x| ^ (2 * m + 1) * (|x| ^ 2) ^ k := by ring
+
+  -- Apply the bound
+  have h_norm_sum : ‖∑' k, term (k + m)‖ ≤ ∑' k, ‖term (k + m)‖ :=
+    norm_tsum_le_tsum_norm h_tail_summable.norm
+  simp only [Real.norm_eq_abs] at h_norm_sum
+  calc |∑' k, term (k + m)|
+      ≤ ∑' k, |term (k + m)| := h_norm_sum
+    _ ≤ ∑' k, geo_term k := h_tail_summable.abs.tsum_le_tsum h_term_bound h_geo_summable
+    _ = |x| ^ (2 * m + 1) * ∑' k, (|x| ^ 2) ^ k := by
+        simp only [geo_term]
+        rw [tsum_mul_left]
+    _ = |x| ^ (2 * m + 1) / (1 - |x| ^ 2) := by
+        rw [tsum_geometric_of_lt_one (sq_nonneg _) hx_abs_sq]
+        ring
+    _ = |x| ^ (2 * m + 1) / (1 - x ^ 2) := by rw [sq_abs]
+    _ ≤ |x| ^ (n + 1) / (1 - x ^ 2) := by
+        -- 2m + 1 ≥ n + 1 since 2m ≥ n (from hm_bound)
+        -- For 0 ≤ |x| ≤ 1, larger exponent means smaller value
+        have h_exp_le : n + 1 ≤ 2 * m + 1 := by omega
+        have h_pow_le : |x| ^ (2 * m + 1) ≤ |x| ^ (n + 1) :=
+          pow_le_pow_of_le_one hx_abs_nonneg hx_abs_le h_exp_le
+        exact div_le_div_of_nonneg_right h_pow_le (by linarith)
 
 /-! ### asinh Taylor polynomial
 
@@ -543,9 +660,27 @@ noncomputable def tmAtanh (J : IntervalRat) (n : ℕ) : TaylorModel :=
     center := 0
     domain := J }
 
+/-- Helper: |z| ≤ radius of interval J for z ∈ J -/
+private theorem abs_le_interval_radius' {z : ℝ} {J : IntervalRat} (hz : z ∈ J) :
+    |z| ≤ max (|(J.lo : ℝ)|) (|(J.hi : ℝ)|) := by
+  simp only [IntervalRat.mem_def] at hz
+  rw [abs_le]
+  constructor
+  · have h1 : -|(J.lo : ℝ)| ≤ J.lo := neg_abs_le _
+    have h2 : -(max (|(J.lo : ℝ)|) (|(J.hi : ℝ)|)) ≤ -|(J.lo : ℝ)| := by
+      simp only [neg_le_neg_iff]; exact le_max_left _ _
+    linarith
+  · have h1 : (J.hi : ℝ) ≤ |(J.hi : ℝ)| := le_abs_self _
+    have h2 : |(J.hi : ℝ)| ≤ max (|(J.lo : ℝ)|) (|(J.hi : ℝ)|) := le_max_right _ _
+    linarith
+
 /-- atanh z ∈ (tmAtanh J n).evalSet z for all z in J with |z| < 1.
-    Uses the geometric series expansion: atanh(x) = Σ x^(2k+1)/(2k+1) for |x| < 1. -/
-theorem tmAtanh_correct (J : IntervalRat) (n : ℕ) :
+    Uses the geometric series expansion: atanh(x) = Σ x^(2k+1)/(2k+1) for |x| < 1.
+
+    Precondition: The domain radius must be ≤ 99/100 to ensure the bound formula works.
+    This is a reasonable restriction since atanh(x) approaches infinity as x → ±1. -/
+theorem tmAtanh_correct (J : IntervalRat) (n : ℕ)
+    (hJ_radius : max (|J.lo|) (|J.hi|) ≤ 99/100) :
     ∀ z : ℝ, z ∈ J → |z| < 1 → Real.atanh z ∈ (tmAtanh J n).evalSet z := by
   intro z hz hz_bound
   simp only [tmAtanh, evalSet, Set.mem_setOf_eq]
@@ -569,9 +704,71 @@ theorem tmAtanh_correct (J : IntervalRat) (n : ℕ) :
     have habs_le : |r| ≤ (atanhRemainderBound J n : ℝ) := by
       calc |r| ≤ |z| ^ (n + 1) / (1 - z ^ 2) := hrem
         _ ≤ (atanhRemainderBound J n : ℝ) := by
-          -- |z| ≤ max(|J.lo|, |J.hi|) = r in the bound formula
-          -- The bound formula has extra safety margins
-          sorry  -- TODO: Complete the bound comparison
+          -- Key facts:
+          -- 1. |z| ≤ max(|J.lo|, |J.hi|) = radius
+          -- 2. radius ≤ 99/100 (from hJ_radius)
+          -- 3. r_safe = min(radius, 99/100) = radius (since radius ≤ 99/100)
+          -- 4. So |z| ≤ r_safe
+          have hz_le_radius : |z| ≤ max (|(J.lo : ℝ)|) (|(J.hi : ℝ)|) :=
+            abs_le_interval_radius' hz
+          have hradius_real : max (|(J.lo : ℝ)|) (|(J.hi : ℝ)|) =
+              (max (|J.lo|) (|J.hi|) : ℚ) := by simp [Rat.cast_max, Rat.cast_abs]
+          set radius : ℚ := max (|J.lo|) (|J.hi|) with hradius_def
+          have hr_safe_eq : min radius (99/100) = radius := min_eq_left hJ_radius
+          -- Key bounds
+          have hradius_le : (radius : ℝ) ≤ 99/100 := by
+            calc (radius : ℝ) ≤ ((99/100 : ℚ) : ℝ) := by exact_mod_cast hJ_radius
+              _ = 99/100 := by norm_num
+          have hradius_lt_one : (radius : ℝ) < 1 := by linarith
+          have hrad_nonneg : 0 ≤ (radius : ℝ) := by
+            calc (0 : ℝ) ≤ |z| := abs_nonneg z
+              _ ≤ max (|(J.lo : ℝ)|) (|(J.hi : ℝ)|) := hz_le_radius
+              _ = (radius : ℝ) := hradius_real
+          have hz_le_rad : |z| ≤ (radius : ℝ) := by rw [hradius_real] at hz_le_radius; exact hz_le_radius
+          -- z² ≤ radius²
+          have hz_sq_le : z ^ 2 ≤ (radius : ℝ) ^ 2 := by
+            have h1 : |z| ^ 2 ≤ (radius : ℝ) ^ 2 := by
+              apply sq_le_sq'
+              · calc -(radius : ℝ) ≤ 0 := by linarith
+                  _ ≤ |z| := abs_nonneg z
+              · exact hz_le_rad
+            rwa [sq_abs] at h1
+          have h1_minus_z_ge : 1 - z ^ 2 ≥ 1 - (radius : ℝ) ^ 2 := by linarith
+          have h1_minus_z_pos : 0 < 1 - z ^ 2 := by nlinarith [sq_nonneg z, sq_abs z]
+          have h1_minus_rad_pos : 0 < 1 - (radius : ℝ) ^ 2 := by nlinarith [sq_nonneg (radius : ℝ)]
+          -- |z|^(n+1) ≤ radius^(n+1)
+          have hpow_le : |z| ^ (n + 1) ≤ (radius : ℝ) ^ (n + 1) :=
+            pow_le_pow_left₀ (abs_nonneg z) hz_le_rad (n + 1)
+          have hpow_nonneg : 0 ≤ |z| ^ (n + 1) := pow_nonneg (abs_nonneg z) _
+          -- Combine: |z|^(n+1)/(1-z²) ≤ radius^(n+1)/(1-radius²)
+          have hbound1 : |z| ^ (n + 1) / (1 - z ^ 2) ≤ (radius : ℝ) ^ (n + 1) / (1 - (radius : ℝ) ^ 2) := by
+            gcongr
+          -- denom = max(1 - radius², 1/100) = 1 - radius² since radius ≤ 99/100
+          have hdenom_eq : max (1 - radius ^ 2) (1/100 : ℚ) = 1 - radius ^ 2 := by
+            apply max_eq_left
+            have h1 : radius ^ 2 ≤ (99/100 : ℚ) ^ 2 := by
+              have hr_nonneg : 0 ≤ radius := le_trans (abs_nonneg J.lo) (le_max_left _ _)
+              nlinarith [sq_nonneg radius]
+            have h2 : (99/100 : ℚ) ^ 2 = 9801/10000 := by norm_num
+            have h3 : 1 - (9801/10000 : ℚ) = 199/10000 := by norm_num
+            have h4 : (199/10000 : ℚ) ≥ 1/100 := by norm_num
+            linarith
+          -- Compute atanhRemainderBound J n = radius^(n+1) / (1 - radius²)
+          have hbound_val : atanhRemainderBound J n = radius ^ (n + 1) / (1 - radius ^ 2) := by
+            unfold atanhRemainderBound
+            simp only [← hradius_def, hr_safe_eq, hdenom_eq]
+          -- Cast and conclude
+          have hdenom_pos : 0 < (1 - radius ^ 2 : ℚ) := by
+            have h1 : radius ^ 2 ≤ (99/100 : ℚ) ^ 2 := by
+              have hr_nonneg : 0 ≤ radius := le_trans (abs_nonneg J.lo) (le_max_left _ _)
+              nlinarith [sq_nonneg radius]
+            have h2 : (99/100 : ℚ) ^ 2 < 1 := by norm_num
+            linarith
+          calc |z| ^ (n + 1) / (1 - z ^ 2)
+              ≤ (radius : ℝ) ^ (n + 1) / (1 - (radius : ℝ) ^ 2) := hbound1
+            _ = (atanhRemainderBound J n : ℝ) := by
+                rw [hbound_val]
+                simp only [Rat.cast_div, Rat.cast_pow, Rat.cast_sub, Rat.cast_one]
     constructor
     · calc -(atanhRemainderBound J n : ℝ) ≤ -|r| := by linarith [abs_nonneg r]
         _ ≤ r := neg_abs_le r

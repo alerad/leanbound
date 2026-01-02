@@ -120,7 +120,8 @@ theorem mem_logIntervalRefined {x : ℝ} {I : IntervalRat.IntervalRatPos} (hx : 
     For larger intervals, uses computed bound via monotonicity.
     Requires -1 < I.lo and I.hi < 1 for correctness. -/
 noncomputable def atanhIntervalRefined' (I : IntervalRat) (hlo : -1 < I.lo) (hhi : I.hi < 1) : IntervalRat :=
-  if I.width ≤ 1 then
+  -- Use Taylor model only when interval is small AND radius is bounded away from 1
+  if I.width ≤ 1 ∧ max (|I.lo|) (|I.hi|) ≤ 99/100 then
     (TaylorModel.tmAtanh I 5).bound
   else
     -- Use computed bound via monotonicity
@@ -141,8 +142,10 @@ theorem mem_atanhIntervalRefined {x : ℝ} {I : IntervalRat}
   unfold atanhIntervalRefined
   simp only [hlo, hhi, and_self, ↓reduceDIte]
   unfold atanhIntervalRefined'
-  by_cases hw : I.width ≤ 1
-  · simp only [hw, ↓reduceIte]
+  by_cases hw : I.width ≤ 1 ∧ max (|I.lo|) (|I.hi|) ≤ 99/100
+  · -- Use Taylor model approach
+    simp only [hw, ↓reduceIte]
+    have ⟨_, hradius⟩ := hw
     -- Prove |x| < 1 from interval bounds
     have hx_lo : (I.lo : ℝ) ≤ x := hx.1
     have hx_hi : x ≤ I.hi := hx.2
@@ -152,17 +155,16 @@ theorem mem_atanhIntervalRefined {x : ℝ} {I : IntervalRat}
       rw [abs_lt]
       constructor <;> linarith
     -- Use tmAtanh_correct
-    have h_evalSet := TaylorModel.tmAtanh_correct I 5 x hx hx_abs
     have hdom : (TaylorModel.tmAtanh I 5).domain = I := rfl
     exact taylorModel_correct (TaylorModel.tmAtanh I 5) Real.atanh
-      (fun z hz => TaylorModel.tmAtanh_correct I 5 z (hdom ▸ hz) (by
+      (fun z hz => TaylorModel.tmAtanh_correct I 5 hradius z (hdom ▸ hz) (by
         have hz' : z ∈ I := hdom ▸ hz
         rw [abs_lt]
         have hlo' : (-1 : ℝ) < I.lo := by exact_mod_cast hlo
         have hhi' : (I.hi : ℝ) < 1 := by exact_mod_cast hhi
         constructor <;> linarith [hz'.1, hz'.2])) x hx
-  · simp only [hw, ↓reduceIte]
-    -- Fallback to computed bound via monotonicity
+  · -- Fallback to computed bound via monotonicity
+    simp only [hw, ↓reduceIte]
     let Iball : IntervalRat.IntervalRatInUnitBall := ⟨I.lo, I.hi, I.le, hlo, hhi⟩
     have hx_ball : x ∈ Iball := by
       simp only [Membership.mem, IntervalRat.IntervalRatInUnitBall.mem_def]
