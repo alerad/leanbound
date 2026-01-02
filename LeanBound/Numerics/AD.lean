@@ -198,7 +198,7 @@ def sinc (d : DualInterval) : DualInterval :=
 
 /-- Partial dual for atanh (chain rule: d(atanh f) = f' / (1 - f²))
     Returns None if the value interval is not contained in (-1, 1). -/
-def atanh? (d : DualInterval) : Option DualInterval :=
+noncomputable def atanh? (d : DualInterval) : Option DualInterval :=
   -- For atanh to be defined, we need |val| < 1
   -- We check if the interval is strictly inside (-1, 1)
   if d.val.hi < 1 ∧ d.val.lo > -1 then

@@ -207,41 +207,25 @@ theorem mem_arsinhInterval {x : ℝ} {I : IntervalRat} (hx : x ∈ I) :
 
 /-- Interval bound for atanh.
     atanh is defined for (-1, 1). If interval is within this range,
-    we return conservative bounds [-100, 100].
-    Use evalIntervalRefined for tight bounds via Taylor models. -/
-def atanhInterval (I : IntervalRat) : IntervalRat :=
-  if -1 < I.lo ∧ I.hi < 1 then
-    ⟨-100, 100, by norm_num⟩
+    we compute tight bounds using monotonicity. Otherwise returns default. -/
+noncomputable def atanhInterval (I : IntervalRat) : IntervalRat :=
+  if h : -1 < I.lo ∧ I.hi < 1 then
+    let Iball : IntervalRat.IntervalRatInUnitBall := ⟨I.lo, I.hi, I.le, h.1, h.2⟩
+    IntervalRat.atanhIntervalComputed Iball
   else
-    -- Domain error or unbounded: return effectively "all reals"
-    ⟨-1000000, 1000000, by norm_num⟩
+    default
 
-/-- Correctness of atanh interval: when x ∈ I and I ⊂ (-1, 1), atanh(x) ∈ atanhInterval I.
-
-    **KNOWN LIMITATION**: The fixed bound [-100, 100] is NOT correct for all intervals
-    strictly inside (-1, 1). For example, if I.hi = 1 - 10^(-100), then
-    atanh(I.hi) ≈ 115 > 100. However:
-    - For practical intervals with small denominators, this bound is safe
-    - The refined version `atanhIntervalRefined` uses Taylor models which are correct
-    - This fallback is only used when Taylor model conditions aren't met
-
-    A complete fix would require computing actual atanh bounds at the endpoints. -/
-theorem mem_atanhInterval {x : ℝ} {I : IntervalRat} (hx : x ∈ I) :
+/-- Correctness of atanh interval: when x ∈ I and I ⊂ (-1, 1), atanh(x) ∈ atanhInterval I. -/
+theorem mem_atanhInterval {x : ℝ} {I : IntervalRat} (hx : x ∈ I)
+    (hlo : -1 < I.lo) (hhi : I.hi < 1) :
     Real.atanh x ∈ atanhInterval I := by
   unfold atanhInterval
-  split_ifs with h
-  · -- Case: -1 < I.lo ∧ I.hi < 1
-    simp only [IntervalRat.mem_def, Rat.cast_neg]
-    -- By monotonicity: atanh(I.lo) ≤ atanh(x) ≤ atanh(I.hi)
-    -- Need to show these are in [-100, 100]
-    -- This requires the interval endpoints not being too close to ±1
-    -- See docstring for known limitation
-    sorry
-  · -- Case: interval may extend outside (-1, 1)
-    simp only [IntervalRat.mem_def, Rat.cast_neg]
-    -- The wide bound [-1000000, 1000000] contains any real value from atanh
-    -- (atanh is unbounded but finite on (-1, 1))
-    sorry
+  simp only [hlo, hhi, and_self, ↓reduceDIte]
+  let Iball : IntervalRat.IntervalRatInUnitBall := ⟨I.lo, I.hi, I.le, hlo, hhi⟩
+  have hx_ball : x ∈ Iball := by
+    simp only [Membership.mem, IntervalRat.IntervalRatInUnitBall.mem_def]
+    exact hx
+  exact IntervalRat.mem_atanhIntervalComputed hx_ball
 
 /-- Tight interval bound for tanh.
     Since tanh(x) ∈ (-1, 1) for all x ∈ ℝ, we use the global bound [-1, 1].

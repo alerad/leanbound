@@ -1,3 +1,5 @@
+.idea/
+.atlas-cache/
 /.lake
 /build
 *.olean
