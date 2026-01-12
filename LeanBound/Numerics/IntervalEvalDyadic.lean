@@ -155,14 +155,8 @@ For expressions not in `ExprSupportedCore`, returns a default safe interval. -/
 def evalIntervalDyadic (e : Expr) (ρ : IntervalDyadicEnv) (cfg : DyadicConfig := {}) : IntervalDyadic :=
   match e with
   | Expr.const q =>
-      -- Convert rational constant to Dyadic singleton
-      -- For integer rationals, this is exact
-      let d := if q.den = 1 then
-        Dyadic.ofInt q.num
-      else
-        -- For non-integer rationals, use conversion with rounding
-        Dyadic.ofInt q.num  -- Simplified; full impl would handle denominator
-      (IntervalDyadic.singleton d).roundOut cfg.precision
+      -- Convert rational constant to Dyadic interval with outward rounding
+      IntervalDyadic.ofIntervalRat (IntervalRat.singleton q) cfg.precision
   | Expr.var idx => ρ idx
   | Expr.add e₁ e₂ =>
       let I₁ := evalIntervalDyadic e₁ ρ cfg
@@ -202,18 +196,19 @@ within the input intervals, the result of evaluating the expression is
 contained in the computed Dyadic interval.
 
 The proof follows the same structure as `evalIntervalCore_correct`, but
-with additional steps for handling Dyadic ↔ Rat conversions and rounding. -/
+with additional steps for handling Dyadic ↔ Rat conversions and rounding.
+Requires cfg.precision ≤ 0 (the default -53 satisfies this). -/
 theorem evalIntervalDyadic_correct (e : Expr) (hsupp : ExprSupportedCore e)
     (ρ_real : Nat → ℝ) (ρ_dyad : IntervalDyadicEnv)
-    (hρ : envMemDyadic ρ_real ρ_dyad) (cfg : DyadicConfig := {}) :
+    (hρ : envMemDyadic ρ_real ρ_dyad) (cfg : DyadicConfig := {})
+    (hprec : cfg.precision ≤ 0 := by norm_num) :
     Expr.eval ρ_real e ∈ evalIntervalDyadic e ρ_dyad cfg := by
   induction hsupp with
   | const q =>
     simp only [Expr.eval_const, evalIntervalDyadic]
-    -- The constant q is converted to a Dyadic singleton with rounding
-    -- Full proof requires handling Rat → Dyadic conversion properly
-    -- The implementation currently simplifies non-integer rationals
-    sorry
+    apply IntervalDyadic.mem_ofIntervalRat
+    · exact IntervalRat.mem_singleton q
+    · exact hprec
   | var idx =>
     simp only [Expr.eval_var, evalIntervalDyadic]
     exact hρ idx
@@ -234,17 +229,17 @@ theorem evalIntervalDyadic_correct (e : Expr) (hsupp : ExprSupportedCore e)
     -- Chain: ih gives Dyadic membership → convert to Rat → use sinComputable → convert back
     have hrat := IntervalDyadic.mem_toIntervalRat.mp ih
     have hsin := IntervalRat.mem_sinComputable hrat cfg.taylorDepth
-    exact IntervalDyadic.mem_ofIntervalRat hsin cfg.precision
+    exact IntervalDyadic.mem_ofIntervalRat hsin cfg.precision hprec
   | cos _ ih =>
     simp only [Expr.eval_cos, evalIntervalDyadic, cosIntervalDyadic]
     have hrat := IntervalDyadic.mem_toIntervalRat.mp ih
     have hcos := IntervalRat.mem_cosComputable hrat cfg.taylorDepth
-    exact IntervalDyadic.mem_ofIntervalRat hcos cfg.precision
+    exact IntervalDyadic.mem_ofIntervalRat hcos cfg.precision hprec
   | exp _ ih =>
     simp only [Expr.eval_exp, evalIntervalDyadic, expIntervalDyadic]
     have hrat := IntervalDyadic.mem_toIntervalRat.mp ih
     have hexp := IntervalRat.mem_expComputable hrat cfg.taylorDepth
-    exact IntervalDyadic.mem_ofIntervalRat hexp cfg.precision
+    exact IntervalDyadic.mem_ofIntervalRat hexp cfg.precision hprec
 
 /-! ### Convenience Functions -/
 

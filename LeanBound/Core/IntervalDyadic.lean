@@ -326,18 +326,46 @@ def ofIntervalRat (I : IntervalRat) (prec : Int := -53) : IntervalDyadic :=
       _ ≤ I.hi * (2 : ℚ) ^ (-prec).toNat := mul_le_mul_of_nonneg_right hle (le_of_lt hscale_pos)
       _ ≤ ⌈I.hi * (2 : ℚ) ^ (-prec).toNat⌉ := Int.le_ceil _⟩
 
-/-- If x ∈ IntervalRat I, then x ∈ ofIntervalRat I prec (outward rounding preserves membership) -/
-theorem mem_ofIntervalRat {x : ℝ} {I : IntervalRat} (hx : x ∈ I) (prec : Int) :
+/-- If x ∈ IntervalRat I, then x ∈ ofIntervalRat I prec (outward rounding preserves membership).
+    Requires precision ≤ 0 (e.g. -53). -/
+theorem mem_ofIntervalRat {x : ℝ} {I : IntervalRat} (hx : x ∈ I) (prec : Int)
+    (hprec : prec ≤ 0 := by norm_num) :
     x ∈ ofIntervalRat I prec := by
   -- The conversion uses floor/ceil which provides outward rounding:
-  -- floor(lo * 2^n) / 2^n ≤ lo ≤ x ≤ hi ≤ ceil(hi * 2^n) / 2^n
-  -- This is sound because floor(a) ≤ a ≤ ceil(a) for any a
+  -- floor(lo * 2^n) * 2^(-n) ≤ lo ≤ x ≤ hi ≤ ceil(hi * 2^n) * 2^(-n)
+  -- This follows from floor(a) ≤ a and a ≤ ceil(a), combined with
+  -- the fact that multiplying by 2^(-n) when prec = -n cancels the 2^n factor.
   simp only [mem_def, ofIntervalRat, IntervalRat.mem_def] at *
-  constructor <;> {
+  have h2n_pos : (0 : ℚ) < (2 : ℚ) ^ (-prec).toNat := pow_pos (by norm_num) _
+  have hfloor : (⌊I.lo * (2 : ℚ) ^ (-prec).toNat⌋ : ℚ) ≤ I.lo * (2 : ℚ) ^ (-prec).toNat := Int.floor_le _
+  have hceil : I.hi * (2 : ℚ) ^ (-prec).toNat ≤ (⌈I.hi * (2 : ℚ) ^ (-prec).toNat⌉ : ℚ) := Int.le_ceil _
+  have hzpow_pos : (0 : ℚ) < (2 : ℚ) ^ prec := zpow_pos (by norm_num) _
+  -- Key: 2^(-prec).toNat * 2^prec = 1 when prec ≤ 0 (so (-prec).toNat = -prec)
+  have hcancel : (2 : ℚ) ^ (-prec).toNat * (2 : ℚ) ^ prec = 1 := by
+    set n := (-prec).toNat with hn_def
+    have hprec_eq : prec = -(n : ℤ) := by omega
+    rw [hprec_eq, zpow_neg, zpow_natCast]
+    exact mul_inv_cancel₀ (ne_of_gt h2n_pos)
+  constructor
+  · -- Lower bound
     rw [Dyadic.toRat_scale2, Dyadic.toRat_ofInt]
-    -- Technical proof involving floor/ceil bounds and power of 2 cancellation
-    sorry
-  }
+    have hle : (⌊I.lo * (2 : ℚ) ^ (-prec).toNat⌋ : ℚ) * (2 : ℚ) ^ prec ≤ I.lo := by
+      calc (⌊I.lo * (2 : ℚ) ^ (-prec).toNat⌋ : ℚ) * (2 : ℚ) ^ prec
+          ≤ (I.lo * (2 : ℚ) ^ (-prec).toNat) * (2 : ℚ) ^ prec := by
+            apply mul_le_mul_of_nonneg_right hfloor (le_of_lt hzpow_pos)
+        _ = I.lo * ((2 : ℚ) ^ (-prec).toNat * (2 : ℚ) ^ prec) := by ring
+        _ = I.lo * 1 := by rw [hcancel]
+        _ = I.lo := by ring
+    exact le_trans (by exact_mod_cast hle) hx.1
+  · -- Upper bound
+    rw [Dyadic.toRat_scale2, Dyadic.toRat_ofInt]
+    have hle : I.hi ≤ (⌈I.hi * (2 : ℚ) ^ (-prec).toNat⌉ : ℚ) * (2 : ℚ) ^ prec := by
+      calc I.hi = I.hi * 1 := by ring
+        _ = I.hi * ((2 : ℚ) ^ (-prec).toNat * (2 : ℚ) ^ prec) := by rw [hcancel]
+        _ = (I.hi * (2 : ℚ) ^ (-prec).toNat) * (2 : ℚ) ^ prec := by ring
+        _ ≤ (⌈I.hi * (2 : ℚ) ^ (-prec).toNat⌉ : ℚ) * (2 : ℚ) ^ prec := by
+            apply mul_le_mul_of_nonneg_right hceil (le_of_lt hzpow_pos)
+    exact le_trans hx.2 (by exact_mod_cast hle)
 
 end IntervalDyadic
 end LeanBound.Core
