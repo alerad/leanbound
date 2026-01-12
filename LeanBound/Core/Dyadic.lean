@@ -765,5 +765,106 @@ theorem compare_eq_iff (d₁ d₂ : Dyadic) :
   · rw [ord_compare_int_eq]; exact aligned_eq_iff_toRat_eq_case1 d₁ d₂ h
   · push_neg at h; rw [ord_compare_int_eq]; exact aligned_eq_iff_toRat_eq_case2 d₁ d₂ h
 
+/-! ### Min/Max Lemmas -/
+
+/-- min produces value ≤ first argument -/
+theorem min_toRat_le_left (d₁ d₂ : Dyadic) : (min d₁ d₂).toRat ≤ d₁.toRat := by
+  unfold min
+  split_ifs with h
+  · exact le_refl _
+  · exact le_of_not_ge (fun hle => h (le_iff_toRat_le d₁ d₂ |>.mpr hle))
+
+/-- min produces value ≤ second argument -/
+theorem min_toRat_le_right (d₁ d₂ : Dyadic) : (min d₁ d₂).toRat ≤ d₂.toRat := by
+  unfold min
+  split_ifs with h
+  · exact le_iff_toRat_le d₁ d₂ |>.mp h
+  · exact le_refl _
+
+/-- first argument ≤ max -/
+theorem le_max_toRat_left (d₁ d₂ : Dyadic) : d₁.toRat ≤ (max d₁ d₂).toRat := by
+  unfold max
+  split_ifs with h
+  · exact le_iff_toRat_le d₁ d₂ |>.mp h
+  · exact le_refl _
+
+/-- second argument ≤ max -/
+theorem le_max_toRat_right (d₁ d₂ : Dyadic) : d₂.toRat ≤ (max d₁ d₂).toRat := by
+  unfold max
+  split_ifs with h
+  · exact le_refl _
+  · exact le_of_not_ge (fun hle => h (le_iff_toRat_le d₁ d₂ |>.mpr hle))
+
+/-- Dyadic.min commutes with toRat -/
+theorem min_toRat (d₁ d₂ : Dyadic) : (min d₁ d₂).toRat = Min.min d₁.toRat d₂.toRat := by
+  unfold min
+  split_ifs with h
+  · -- h : le d₁ d₂
+    have hle : d₁.toRat ≤ d₂.toRat := le_iff_toRat_le d₁ d₂ |>.mp h
+    exact (min_eq_left hle).symm
+  · -- ¬ le d₁ d₂, so d₂.toRat < d₁.toRat
+    have hgt : d₂.toRat < d₁.toRat := by
+      have := le_iff_toRat_le d₁ d₂
+      exact lt_of_not_ge (fun hle => h (this.mpr hle))
+    exact (min_eq_right (le_of_lt hgt)).symm
+
+/-- Dyadic.max commutes with toRat -/
+theorem max_toRat (d₁ d₂ : Dyadic) : (max d₁ d₂).toRat = Max.max d₁.toRat d₂.toRat := by
+  unfold max
+  split_ifs with h
+  · -- h : le d₁ d₂
+    have hle : d₁.toRat ≤ d₂.toRat := le_iff_toRat_le d₁ d₂ |>.mp h
+    exact (max_eq_right hle).symm
+  · -- ¬ le d₁ d₂, so d₂.toRat < d₁.toRat
+    have hgt : d₂.toRat < d₁.toRat := by
+      have := le_iff_toRat_le d₁ d₂
+      exact lt_of_not_ge (fun hle => h (this.mpr hle))
+    exact (max_eq_left (le_of_lt hgt)).symm
+
+/-- min4 ≤ max4 -/
+theorem min4_le_max4 (a b c d : Dyadic) : (min4 a b c d).toRat ≤ (max4 a b c d).toRat := by
+  unfold min4 max4
+  calc (min (min a b) (min c d)).toRat
+      ≤ (min a b).toRat := min_toRat_le_left _ _
+    _ ≤ a.toRat := min_toRat_le_left _ _
+    _ ≤ (max a b).toRat := le_max_toRat_left _ _
+    _ ≤ (max (max a b) (max c d)).toRat := le_max_toRat_left _ _
+
+/-! ### Normalize Lemmas -/
+
+/-- normalizeDown produces value ≤ original -/
+theorem toRat_normalizeDown_le (d : Dyadic) (maxBits : Nat) :
+    (d.normalizeDown maxBits).toRat ≤ d.toRat := by
+  unfold normalizeDown normalize
+  simp only [Bool.false_eq_true, ↓reduceIte]
+  split_ifs with h
+  · exact le_refl _
+  · exact toRat_shiftDown_le d _
+
+/-- normalizeUp produces value ≥ original -/
+theorem toRat_normalizeUp_ge (d : Dyadic) (maxBits : Nat) :
+    d.toRat ≤ (d.normalizeUp maxBits).toRat := by
+  unfold normalizeUp normalize
+  simp only [↓reduceIte]
+  split_ifs with h
+  · exact le_refl _
+  · exact toRat_shiftUp_ge d _
+
+/-! ### Scale2 Lemmas -/
+
+/-- scale2 multiplies by 2^n -/
+theorem toRat_scale2 (d : Dyadic) (n : Int) :
+    (d.scale2 n).toRat = d.toRat * (2 : ℚ) ^ n := by
+  unfold scale2
+  rw [toRat_eq, toRat_eq]
+  simp only []
+  rw [mul_assoc, ← zpow_add₀ (two_ne_zero : (2 : ℚ) ≠ 0)]
+
+/-- scale2 preserves order -/
+theorem toRat_scale2_le_scale2 (d₁ d₂ : Dyadic) (n : Int) (h : d₁.toRat ≤ d₂.toRat) :
+    (d₁.scale2 n).toRat ≤ (d₂.scale2 n).toRat := by
+  rw [toRat_scale2, toRat_scale2]
+  exact mul_le_mul_of_nonneg_right h (zpow_nonneg (by norm_num : (0 : ℚ) ≤ 2) n)
+
 end Dyadic
 end LeanBound.Core

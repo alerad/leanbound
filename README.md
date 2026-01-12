@@ -226,4 +226,11 @@ Open an issue before starting major work.
 
 ## License
 
-Apache 2.0
+**Dual Licensed:**
+
+- **AGPL-3.0** — Free for open source projects and non-commercial use
+- **Commercial License** — Required for proprietary/closed-source use
+
+If your organization uses LeanBound in production without releasing your code under AGPL, contact [your email] for commercial licensing.
+
+See [LICENSE](LICENSE) for the full AGPL-3.0 text.
