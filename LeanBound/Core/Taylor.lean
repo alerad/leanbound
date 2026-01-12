@@ -6,6 +6,7 @@ Authors: LeanBound Contributors
 import Mathlib.Analysis.Calculus.Taylor
 import Mathlib.Analysis.SpecialFunctions.ExpDeriv
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Deriv
+import Mathlib.Analysis.SpecialFunctions.Log.Deriv
 
 /-!
 # Generic Taylor Series Abstractions
@@ -158,6 +159,327 @@ lemma iteratedDerivWithin_Icc_left_eq_iteratedDeriv {f : ℝ → ℝ} {c x : ℝ
       simp only [Function.iterate_one] at h
       exact h
     exact ih hdf
+
+/-- At the left endpoint of [c, x], iteratedDerivWithin equals iteratedDeriv for functions
+    that are ContDiffOn on an open set containing c.
+
+    This is useful for functions like log that are only smooth on (0, ∞). -/
+lemma iteratedDerivWithin_Icc_left_eq_iteratedDeriv_of_isOpen {f : ℝ → ℝ} {c x : ℝ} {n : ℕ} {U : Set ℝ}
+    (hU_open : IsOpen U) (hcU : c ∈ U) (hcx : c < x) (hI_sub : Set.Icc c x ⊆ U)
+    (hf : ContDiffOn ℝ n f U) :
+    iteratedDerivWithin n f (Set.Icc c x) c = iteratedDeriv n f c := by
+  open Set in
+  induction n generalizing f with
+  | zero => simp only [iteratedDerivWithin_zero, iteratedDeriv_zero]
+  | succ n ih =>
+    have hf_n : ContDiffOn ℝ n f U := hf.of_le (by simp : (n : WithTop ℕ∞) ≤ (n + 1 : ℕ))
+    rw [iteratedDerivWithin_succ', iteratedDeriv_succ']
+    have h_one_le : (1 : WithTop ℕ∞) ≤ ((n : ℕ) + 1 : ℕ) := by
+      simp only [Nat.cast_add, Nat.cast_one]
+      exact le_add_of_nonneg_left (zero_le _)
+    -- For each y in Icc c x, derivWithin f = deriv f
+    have h_eq_derivWithin : EqOn (derivWithin f (Icc c x)) (deriv f) (Icc c x) := by
+      intro y hy
+      rcases eq_or_ne y c with rfl | hne_c
+      · -- At c: use that f is differentiable at c (from ContDiffOn on open U)
+        exact derivWithin_Icc_left_eq_deriv hcx
+            ((hf.differentiableOn h_one_le).differentiableAt (hU_open.mem_nhds hcU))
+      · rcases eq_or_ne y x with rfl | hne_x
+        · -- At x: use right endpoint lemma
+          exact derivWithin_Icc_right_eq_deriv hcx
+              ((hf.differentiableOn h_one_le).differentiableAt (hU_open.mem_nhds (hI_sub hy)))
+        · -- Interior: Icc is a neighborhood
+          apply derivWithin_of_mem_nhds
+          apply Icc_mem_nhds
+          · exact lt_of_le_of_ne hy.1 (Ne.symm hne_c)
+          · exact lt_of_le_of_ne hy.2 hne_x
+    have h_congr : EqOn (iteratedDerivWithin n (derivWithin f (Icc c x)) (Icc c x))
+                        (iteratedDerivWithin n (deriv f) (Icc c x)) (Icc c x) :=
+      iteratedDerivWithin_congr (n := n) h_eq_derivWithin
+    have hc_mem : c ∈ Icc c x := left_mem_Icc.mpr (le_of_lt hcx)
+    rw [h_congr hc_mem]
+    have hdf : ContDiffOn ℝ n (deriv f) U := hf.deriv_of_isOpen hU_open le_rfl
+    exact ih hdf
+
+/-- Taylor remainder bound for c < x case with ContDiffOn hypothesis.
+
+    For functions that are ContDiffOn on an open set containing [a, b], this provides
+    the same Lagrange remainder bound as the global ContDiff version. -/
+theorem taylor_remainder_bound_on_c_lt_x {f : ℝ → ℝ} {a b c : ℝ} {m : ℕ} {M : ℝ} {U : Set ℝ}
+    (hU_open : IsOpen U) (hI_sub : Set.Icc a b ⊆ U)
+    (hca : a ≤ c)
+    (hf : ContDiffOn ℝ (m + 1) f U)
+    (hM : ∀ y ∈ Set.Icc a b, ‖iteratedDeriv (m + 1) f y‖ ≤ M)
+    (x : ℝ) (hx : x ∈ Set.Icc a b) (hcx : c < x) :
+    ‖f x - ∑ i ∈ Finset.range (m + 1), (iteratedDeriv i f c / i.factorial) * (x - c) ^ i‖
+        ≤ M * |x - c| ^ (m + 1) / (m + 1).factorial := by
+  open Set Finset in
+  have hcx_le : c ≤ x := le_of_lt hcx
+  have hcI : c ∈ Icc a b := ⟨hca, le_trans hcx_le hx.2⟩
+  have hI_sub' : Icc c x ⊆ Icc a b := Icc_subset_Icc hca hx.2
+  have hI_sub_U : Icc c x ⊆ U := fun y hy => hI_sub (hI_sub' hy)
+  have hcU : c ∈ U := hI_sub hcI
+  have hf_on : ContDiffOn ℝ (m + 1) f (Icc c x) := hf.mono hI_sub_U
+  have hf_on_m : ContDiffOn ℝ m f (Icc c x) := by
+    have hm_le : (m : WithTop ℕ∞) ≤ (m + 1 : ℕ) := by simp
+    exact hf_on.of_le hm_le
+  have hf_diff : DifferentiableOn ℝ (iteratedDerivWithin m f (Icc c x)) (Ioo c x) := by
+    have huniq := uniqueDiffOn_Icc hcx
+    have hm_lt : (m : WithTop ℕ∞) < (m + 1 : ℕ) := by
+      have : (m : ℕ) < m + 1 := Nat.lt_succ_self m
+      exact_mod_cast this
+    have hdiff := hf_on.differentiableOn_iteratedDerivWithin hm_lt huniq
+    exact hdiff.mono Ioo_subset_Icc_self
+  obtain ⟨ξ, hξ_mem, hLagrange⟩ := taylor_mean_remainder_lagrange hcx hf_on_m hf_diff
+  have hξ_ab : ξ ∈ Icc a b := hI_sub' (Ioo_subset_Icc_self hξ_mem)
+  have hderiv_ξ : iteratedDerivWithin (m + 1) f (Icc c x) ξ = iteratedDeriv (m + 1) f ξ :=
+    iteratedDerivWithin_Icc_interior_eq hcx hξ_mem
+  have hsum_eq : ∑ i ∈ range (m + 1), (iteratedDeriv i f c / i.factorial) * (x - c) ^ i =
+                 taylorWithinEval f m (Icc c x) c x := by
+    rw [taylor_within_apply]
+    apply sum_congr rfl
+    intro i hi
+    have hderiv_c : iteratedDerivWithin i f (Icc c x) c = iteratedDeriv i f c := by
+      have hi_lt : i < m + 1 := mem_range.mp hi
+      have hi_le : (i : WithTop ℕ∞) ≤ (m + 1 : ℕ) := by
+        have : (i : ℕ) ≤ m := Nat.lt_succ_iff.mp hi_lt
+        exact le_of_lt (by exact_mod_cast Nat.lt_add_one_of_le this)
+      exact iteratedDerivWithin_Icc_left_eq_iteratedDeriv_of_isOpen hU_open hcU hcx hI_sub_U (hf.of_le hi_le)
+    rw [hderiv_c]
+    simp only [smul_eq_mul]
+    ring
+  rw [hsum_eq, hLagrange, hderiv_ξ]
+  rw [norm_div, norm_mul, Real.norm_eq_abs, Real.norm_eq_abs, Real.norm_eq_abs]
+  have hfact_pos : (0 : ℝ) < ((m + 1).factorial : ℝ) := Nat.cast_pos.mpr (Nat.factorial_pos _)
+  rw [abs_of_pos hfact_pos]
+  have hxc_pos : 0 < x - c := sub_pos.mpr hcx
+  rw [abs_pow, abs_of_pos hxc_pos]
+  have hbound := hM ξ hξ_ab
+  have h_pow_fact_pos : 0 < (x - c) ^ (m + 1) / (m + 1).factorial := by
+    apply div_pos
+    · exact pow_pos hxc_pos _
+    · exact hfact_pos
+  calc |iteratedDeriv (m + 1) f ξ| * (x - c) ^ (m + 1) / ↑(m + 1).factorial
+      = |iteratedDeriv (m + 1) f ξ| * ((x - c) ^ (m + 1) / ↑(m + 1).factorial) := by ring
+    _ ≤ M * ((x - c) ^ (m + 1) / ↑(m + 1).factorial) := by
+        apply mul_le_mul_of_nonneg_right hbound (le_of_lt h_pow_fact_pos)
+    _ = M * (x - c) ^ (m + 1) / ↑(m + 1).factorial := by ring
+
+/-- Helper: translation invariance of iteratedDeriv for ContDiffOn on open sets. -/
+private lemma iteratedDeriv_translate_of_contDiffOn {f : ℝ → ℝ} {k : ℝ} {n : ℕ} {U : Set ℝ}
+    (hU_open : IsOpen U) (t : ℝ) (ht : t + k ∈ U)
+    (hf : ContDiffOn ℝ n f U) :
+    iteratedDeriv n (fun y => f (y + k)) t = iteratedDeriv n f (t + k) := by
+  induction n generalizing f with
+  | zero => simp only [iteratedDeriv_zero]
+  | succ n ih =>
+    rw [iteratedDeriv_succ', iteratedDeriv_succ']
+    -- Since t + k ∈ U and U is open, there's a neighborhood of t where y + k ∈ U for all y
+    have h_nhds_mem : ∀ᶠ y in nhds t, y + k ∈ U := by
+      have hcont : Continuous (fun y => y + k) := continuous_id.add continuous_const
+      have hU_nhds : U ∈ nhds (t + k) := hU_open.mem_nhds ht
+      exact hcont.continuousAt.preimage_mem_nhds hU_nhds
+    -- Derivative equality in a neighborhood of t
+    have h_deriv_eq_near : ∀ᶠ y in nhds t, deriv (fun z => f (z + k)) y = deriv f (y + k) := by
+      filter_upwards [h_nhds_mem] with y hy_mem
+      have hf' : ContDiffOn ℝ 1 f U := hf.of_le (by norm_cast; omega)
+      have hdiff : DifferentiableAt ℝ f (y + k) :=
+        (hf'.differentiableOn le_rfl).differentiableAt (hU_open.mem_nhds hy_mem)
+      have hlin : DifferentiableAt ℝ (fun z => z + k) y :=
+        differentiableAt_id.add (differentiableAt_const _)
+      have h := deriv_comp y hdiff hlin
+      simp only [deriv_add_const, deriv_id'', mul_one] at h
+      exact h
+    have h_iter_eq : iteratedDeriv n (deriv fun z => f (z + k)) t =
+                     iteratedDeriv n (fun y => deriv f (y + k)) t :=
+      Filter.EventuallyEq.iteratedDeriv_eq n h_deriv_eq_near
+    rw [h_iter_eq]
+    have hdf : ContDiffOn ℝ n (deriv f) U := hf.deriv_of_isOpen hU_open le_rfl
+    exact ih hdf
+
+/-- Key lemma for reflection: derivatives of g(t) = f(2c - t) when f is smooth on an open set.
+
+This is a local version of `iteratedDeriv_reflect` that works with ContDiffOn on an open set
+rather than global ContDiff. -/
+lemma iteratedDeriv_reflect_of_contDiffOn {f : ℝ → ℝ} {c : ℝ} {n : ℕ} {U : Set ℝ}
+    (hU_open : IsOpen U) (hf : ContDiffOn ℝ n f U) (t : ℝ) (ht : 2 * c - t ∈ U) :
+    iteratedDeriv n (fun s => f (2 * c - s)) t = (-1 : ℝ) ^ n * iteratedDeriv n f (2 * c - t) := by
+  -- Rewrite as f ∘ (· + 2c) ∘ (- ·)
+  have heq : (fun s => f (2 * c - s)) = (fun s => (fun y => f (y + 2 * c)) (-s)) := by
+    ext s; ring_nf
+  rw [heq]
+  rw [iteratedDeriv_comp_neg n (fun y => f (y + 2 * c)) t]
+  simp only [smul_eq_mul]
+  congr 1
+  -- Use the translation helper
+  have hmt : -t + 2 * c = 2 * c - t := by ring
+  rw [← hmt] at ht
+  convert iteratedDeriv_translate_of_contDiffOn hU_open (-t) ht hf using 1
+  rw [hmt]
+
+/-- Taylor remainder bound for x < c case with ContDiffOn hypothesis.
+
+    For functions that are ContDiffOn on an open set containing [a, b], this provides
+    the same Lagrange remainder bound as the global ContDiff version.
+
+    The proof uses reflection: define g(t) = f(2c - t), apply Lagrange to g on [c, 2c-x],
+    then convert back. -/
+theorem taylor_remainder_bound_on_x_lt_c {f : ℝ → ℝ} {a b c : ℝ} {m : ℕ} {M : ℝ} {U : Set ℝ}
+    (hU_open : IsOpen U) (hI_sub : Set.Icc a b ⊆ U)
+    (hcb : c ≤ b)
+    (hf : ContDiffOn ℝ (m + 1) f U)
+    (hM : ∀ y ∈ Set.Icc a b, ‖iteratedDeriv (m + 1) f y‖ ≤ M)
+    (x : ℝ) (hx : x ∈ Set.Icc a b) (hxc : x < c) :
+    ‖f x - ∑ i ∈ Finset.range (m + 1), (iteratedDeriv i f c / i.factorial) * (x - c) ^ i‖
+        ≤ M * |x - c| ^ (m + 1) / (m + 1).factorial := by
+  open Set Finset in
+  -- Define reflected function g(t) = f(2c - t)
+  set g : ℝ → ℝ := fun t => f (2 * c - t) with hg_def
+  -- Define V = preimage of U under reflection (the reflected open set)
+  set V : Set ℝ := (fun t => 2 * c - t) ⁻¹' U with hV_def
+  -- V is open (preimage of open set under continuous function)
+  have hV_open : IsOpen V := by
+    apply IsOpen.preimage _ hU_open
+    exact continuous_const.sub continuous_id
+  -- g is ContDiffOn V
+  have hg_ContDiffOn : ContDiffOn ℝ (m + 1) g V := by
+    have hlin : ContDiff ℝ ⊤ (fun t => 2 * c - t) := contDiff_const.sub contDiff_id
+    -- g = f ∘ (2c - ·) and (2c - ·) maps V into U
+    have hmaps : Set.MapsTo (fun t => 2 * c - t) V U := fun t ht => ht
+    have hlin_on : ContDiffOn ℝ (m + 1) (fun t => 2 * c - t) V :=
+      (hlin.contDiffOn.mono (Set.subset_univ _)).of_le le_top
+    exact ContDiffOn.comp hf hlin_on hmaps
+  -- The interval [c, 2c-x]
+  have h_interval_lt : c < 2 * c - x := by linarith
+  -- [c, 2c-x] maps under t ↦ 2c-t to [x, c] ⊆ [a,b] ⊆ U
+  -- So [c, 2c-x] ⊆ V
+  have hJ_sub_V : Icc c (2 * c - x) ⊆ V := by
+    intro t ht
+    -- 2c - t ∈ [x, c] ⊆ [a,b] ⊆ U
+    have ht_lower : x ≤ 2 * c - t := by linarith [ht.2]
+    have ht_upper : 2 * c - t ≤ c := by linarith [ht.1]
+    have h2ct_in_ab : 2 * c - t ∈ Icc a b := by
+      refine mem_Icc.mpr ⟨?_, ?_⟩
+      · exact le_trans hx.1 ht_lower
+      · exact le_trans ht_upper hcb
+    exact hI_sub h2ct_in_ab
+  -- c ∈ V since c maps to c ∈ [a,b] ⊆ U
+  have hcV : c ∈ V := by
+    have hc_ab : c ∈ Icc a b := ⟨le_trans hx.1 (le_of_lt hxc), hcb⟩
+    -- Need to show c ∈ V, i.e., (fun t => 2 * c - t) c ∈ U, i.e., 2c - c = c ∈ U
+    show c ∈ V
+    simp only [hV_def, Set.mem_preimage]
+    have h2cc : 2 * c - c = c := by ring
+    rw [h2cc]
+    exact hI_sub hc_ab
+  -- Helper: map [c, 2c-x] to [a,b]
+  have h_map_to_ab : ∀ t ∈ Icc c (2 * c - x), 2 * c - t ∈ Icc a b := by
+    intro t ht
+    have ht_lower : x ≤ 2 * c - t := by linarith [ht.2]
+    have ht_upper : 2 * c - t ≤ c := by linarith [ht.1]
+    exact ⟨le_trans hx.1 ht_lower, le_trans ht_upper hcb⟩
+  -- Derivative bound for g using reflection formula
+  have hg_deriv_bound : ∀ y ∈ Icc c (2 * c - x), ‖iteratedDeriv (m + 1) g y‖ ≤ M := by
+    intro y hy
+    have h2cy_ab : 2 * c - y ∈ Icc a b := h_map_to_ab y hy
+    have h2cy_U : 2 * c - y ∈ U := hI_sub h2cy_ab
+    -- Use the reflection formula
+    have hg_deriv : iteratedDeriv (m + 1) g y = (-1 : ℝ) ^ (m + 1) * iteratedDeriv (m + 1) f (2 * c - y) :=
+      iteratedDeriv_reflect_of_contDiffOn hU_open hf y h2cy_U
+    rw [hg_deriv, norm_mul, Real.norm_eq_abs]
+    have h_neg_one : |(-1 : ℝ) ^ (m + 1)| = 1 := by
+      rw [abs_pow, abs_neg, abs_one, one_pow]
+    rw [h_neg_one, one_mul]
+    exact hM (2 * c - y) h2cy_ab
+  -- Now apply taylor_remainder_bound_on_c_lt_x to g
+  have hcV' : a ≤ c := le_trans hx.1 (le_of_lt hxc)
+  -- g is ContDiffOn V and Icc c (2c-x) ⊆ V
+  have h_taylor_g := taylor_remainder_bound_on_c_lt_x hV_open hJ_sub_V (le_refl c)
+      hg_ContDiffOn hg_deriv_bound (2 * c - x) ⟨le_of_lt h_interval_lt, le_refl _⟩ h_interval_lt
+  -- g(2c-x) = f(x)
+  have hg_at_2cmx : g (2 * c - x) = f x := by simp only [hg_def, sub_sub_cancel]
+  -- g^(i)(c) = (-1)^i * f^(i)(c)
+  have hg_deriv_c : ∀ i ≤ m + 1, iteratedDeriv i g c = (-1 : ℝ) ^ i * iteratedDeriv i f c := by
+    intro i hi
+    have hcU : c ∈ U := hI_sub ⟨le_trans hx.1 (le_of_lt hxc), hcb⟩
+    have h2cc : 2 * c - c = c := by ring
+    rw [← h2cc] at hcU
+    have hfi : ContDiffOn ℝ i f U := hf.of_le (by exact_mod_cast hi)
+    have hrefl := iteratedDeriv_reflect_of_contDiffOn hU_open hfi c hcU
+    simp only [h2cc] at hrefl
+    exact hrefl
+  -- Now convert the Taylor sum
+  -- ∑ (iteratedDeriv i g c / i!) * ((2c-x) - c)^i = ∑ (iteratedDeriv i f c / i!) * (x - c)^i
+  have hsum_eq : ∑ i ∈ range (m + 1), (iteratedDeriv i g c / i.factorial) * ((2 * c - x) - c) ^ i =
+                 ∑ i ∈ range (m + 1), (iteratedDeriv i f c / i.factorial) * (x - c) ^ i := by
+    apply sum_congr rfl
+    intro i hi
+    have hi_le : i ≤ m + 1 := le_of_lt (mem_range.mp hi)
+    rw [hg_deriv_c i hi_le]
+    have h_diff : (2 * c - x) - c = c - x := by ring
+    rw [h_diff]
+    have h_pow : (c - x : ℝ) ^ i = (-1 : ℝ) ^ i * (x - c) ^ i := by
+      have : c - x = -(x - c) := by ring
+      rw [this, neg_eq_neg_one_mul, mul_pow]
+    rw [h_pow]
+    -- Simplify: (-1)^i * f^(i)(c) / i! * ((-1)^i * (x-c)^i)
+    have h_neg_sq : (-1 : ℝ) ^ i * (-1 : ℝ) ^ i = 1 := by rw [← pow_add]; norm_num
+    -- Goal: (-1)^i * iteratedDeriv i f c / i! * ((-1)^i * (x-c)^i) = iteratedDeriv i f c / i! * (x-c)^i
+    calc (-1 : ℝ) ^ i * iteratedDeriv i f c / ↑i.factorial * ((-1) ^ i * (x - c) ^ i)
+        = ((-1 : ℝ) ^ i * (-1) ^ i) * (iteratedDeriv i f c / ↑i.factorial * (x - c) ^ i) := by ring
+      _ = 1 * (iteratedDeriv i f c / ↑i.factorial * (x - c) ^ i) := by rw [h_neg_sq]
+      _ = iteratedDeriv i f c / ↑i.factorial * (x - c) ^ i := by ring
+  -- Use h_taylor_g with the conversions
+  rw [hg_at_2cmx, hsum_eq] at h_taylor_g
+  -- The RHS: M * |(2c-x) - c|^(m+1) / (m+1)! = M * |x - c|^(m+1) / (m+1)!
+  have h_abs_eq : |(2 * c - x) - c| = |x - c| := by
+    have h : (2 * c - x) - c = c - x := by ring
+    rw [h, abs_sub_comm]
+  rw [h_abs_eq] at h_taylor_g
+  exact h_taylor_g
+
+/-- Combined Taylor remainder bound with ContDiffOn hypothesis.
+
+    For functions that are ContDiffOn on an open set containing [a, b], this provides
+    the Lagrange remainder bound for any x ∈ [a, b] and center c ∈ [a, b]. -/
+theorem taylor_remainder_bound_on {f : ℝ → ℝ} {a b c : ℝ} {n : ℕ} {M : ℝ} {U : Set ℝ}
+    (hU_open : IsOpen U) (hI_sub : Set.Icc a b ⊆ U)
+    (hca : a ≤ c) (hcb : c ≤ b)
+    (hf : ContDiffOn ℝ n f U)
+    (hM : ∀ x ∈ Set.Icc a b, ‖iteratedDeriv n f x‖ ≤ M)
+    (_hMnonneg : 0 ≤ M) :
+    ∀ x ∈ Set.Icc a b,
+      ‖f x - ∑ i ∈ Finset.range n, (iteratedDeriv i f c / i.factorial) * (x - c) ^ i‖
+        ≤ M * |x - c| ^ n / n.factorial := by
+  open Set Finset in
+  intro x hx
+  cases n with
+  | zero =>
+    simp only [range_zero, sum_empty, sub_zero, Nat.factorial_zero, Nat.cast_one,
+      div_one, pow_zero, mul_one]
+    have h : f = iteratedDeriv 0 f := iteratedDeriv_zero.symm
+    rw [h]
+    exact hM x hx
+  | succ m =>
+    by_cases hxc : x = c
+    · -- Case x = c: both sides are 0
+      have hrhs : M * |x - c| ^ (m + 1) / ↑(m + 1).factorial = 0 := by
+        rw [hxc, sub_self, abs_zero, zero_pow (Nat.succ_ne_zero m), mul_zero, zero_div]
+      rw [hrhs]
+      have hsum : ∑ i ∈ range (m + 1), (iteratedDeriv i f c / i.factorial) * (x - c) ^ i = f c := by
+        rw [hxc]
+        simp only [sub_self]
+        rw [sum_eq_single 0]
+        · simp [iteratedDeriv_zero]
+        · intro i _ hi
+          have hpos : 0 < i := Nat.pos_of_ne_zero hi
+          have : (0 : ℝ) ^ i = 0 := zero_pow hpos.ne'
+          simp [this]
+        · simp
+      rw [hsum, hxc, sub_self, norm_zero]
+    · rcases lt_or_gt_of_ne hxc with hxc_lt | hcx_lt
+      · exact taylor_remainder_bound_on_x_lt_c hU_open hI_sub hcb hf hM x hx hxc_lt
+      · exact taylor_remainder_bound_on_c_lt_x hU_open hI_sub hca hf hM x hx hcx_lt
 
 /-- Key lemma: derivatives of reflected function g(t) = f(2c - t).
 
@@ -552,5 +874,52 @@ theorem sinh_cosh_deriv_bound {a b : ℝ} (_hab : a ≤ b) (n : ℕ) :
       have hderiv : deriv Real.cosh = Real.sinh := Real.deriv_cosh
       rw [hderiv]
       exact ih.1
+
+/-- The n-th iterated derivative of log at x > 0 is (-1)^(n-1) * (n-1)! * x^(-n) for n ≥ 1. -/
+theorem iteratedDeriv_log {n : ℕ} (hn : n ≠ 0) {x : ℝ} (hx : 0 < x) :
+    iteratedDeriv n Real.log x = (-1)^(n-1) * (n-1).factorial * x^(-(n : ℤ)) := by
+  induction n generalizing x with
+  | zero => contradiction
+  | succ n ih =>
+    cases n with
+    | zero =>
+      -- n = 1: iteratedDeriv 1 log x = deriv log x = 1/x = x^(-1)
+      simp only [iteratedDeriv_one, Nat.zero_add, Nat.add_sub_cancel, pow_zero, Nat.factorial_zero,
+        Nat.cast_one, one_mul, zpow_neg, zpow_natCast, Nat.sub_zero, Nat.sub_self]
+      rw [Real.deriv_log']
+      -- Goal: x⁻¹ = (x ^ 1)⁻¹
+      norm_num
+    | succ n =>
+      -- n + 2: use induction
+      -- iteratedDeriv (n+2) log = deriv (iteratedDeriv (n+1) log)
+      rw [iteratedDeriv_succ]
+      -- By IH: iteratedDeriv (n+1) log y = (-1)^n * n! * y^(-(n+1)) for y > 0
+      have h_eq : ∀ y : ℝ, 0 < y → iteratedDeriv (n + 1) Real.log y =
+          (-1 : ℝ)^n * n.factorial * y^(-(n + 1 : ℤ)) := fun y hy => ih n.succ_ne_zero hy
+      have h_deriv_eq : deriv (iteratedDeriv (n + 1) Real.log) x =
+          deriv (fun y => (-1 : ℝ)^n * n.factorial * y^(-(n + 1 : ℤ))) x := by
+        apply Filter.EventuallyEq.deriv_eq
+        filter_upwards [eventually_gt_nhds hx] with y hy
+        exact h_eq y hy
+      rw [h_deriv_eq]
+      have hdiff : DifferentiableAt ℝ (fun y => y ^ (-(n + 1 : ℤ))) x := by
+        apply DifferentiableAt.zpow differentiableAt_id
+        left; exact hx.ne'
+      rw [deriv_const_mul _ hdiff]
+      rw [deriv_zpow (-(n + 1 : ℤ)) x]
+      -- Goal: (-1)^n * n! * (-(n+1) * x^(-(n+1)-1)) = (-1)^(n+1) * (n+1)! * x^(-(n+2))
+      have hsub1 : n + 1 + 1 - 1 = n + 1 := by omega
+      have hn2 : (-(↑n + 1) - 1 : ℤ) = -(↑n + 2) := by ring
+      simp only [hsub1, Nat.factorial_succ, Nat.cast_mul, Nat.cast_succ, Int.natCast_succ, hn2]
+      -- Need to show: (-1)^n * n! * (-(n+1) * x^(-(n+2))) = (-1)^(n+1) * (n+1)! * x^(-(n+2))
+      have hn3 : n + 1 + 1 = n + 2 := by omega
+      simp only [hn3, zpow_neg, Int.natCast_succ]
+      rw [pow_succ (-1 : ℝ) n]
+      -- The goal involves (-1)^n, factorials, and negative integer powers
+      -- Convert to a form that ring can handle
+      have hx_ne : x ≠ 0 := hx.ne'
+      have hxpow_ne : x ^ (2 + n) ≠ 0 := pow_ne_zero _ hx_ne
+      field_simp
+      ring
 
 end LeanBound.Core

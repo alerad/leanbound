@@ -1003,7 +1003,7 @@ lemma mvt_fc_lower_bound_pos_increasing_core
     (e : Expr) (hsupp : ExprSupportedCore e)
     (I : IntervalRat) (cfg : EvalConfig)
     (_hI_nonsingleton : I.lo < I.hi)
-    (hdI_lo_pos : 0 < (derivIntervalCore e I cfg).lo)
+    (_hdI_lo_pos : 0 < (derivIntervalCore e I cfg).lo)
     (hCont : ContinuousOn (evalFunc1 e) (Set.Icc I.lo I.hi))
     (hf_Ilo_pos : 0 < evalFunc1 e I.lo) :
     let c : ℚ := I.midpoint
@@ -1040,7 +1040,7 @@ lemma mvt_fc_upper_bound_pos_increasing_core
     (e : Expr) (hsupp : ExprSupportedCore e)
     (I : IntervalRat) (cfg : EvalConfig)
     (_hI_nonsingleton : I.lo < I.hi)
-    (hdI_lo_pos : 0 < (derivIntervalCore e I cfg).lo)
+    (_hdI_lo_pos : 0 < (derivIntervalCore e I cfg).lo)
     (hCont : ContinuousOn (evalFunc1 e) (Set.Icc I.lo I.hi))
     (hf_Ihi_neg : evalFunc1 e I.hi < 0) :
     let c : ℚ := I.midpoint
@@ -1077,7 +1077,7 @@ lemma mvt_fc_upper_bound_neg_decreasing_core
     (e : Expr) (hsupp : ExprSupportedCore e)
     (I : IntervalRat) (cfg : EvalConfig)
     (_hI_nonsingleton : I.lo < I.hi)
-    (hdI_hi_neg : (derivIntervalCore e I cfg).hi < 0)
+    (_hdI_hi_neg : (derivIntervalCore e I cfg).hi < 0)
     (hCont : ContinuousOn (evalFunc1 e) (Set.Icc I.lo I.hi))
     (hf_Ilo_neg : evalFunc1 e I.lo < 0) :
     let c : ℚ := I.midpoint
@@ -1114,7 +1114,7 @@ lemma mvt_fc_lower_bound_neg_decreasing_core
     (e : Expr) (hsupp : ExprSupportedCore e)
     (I : IntervalRat) (cfg : EvalConfig)
     (_hI_nonsingleton : I.lo < I.hi)
-    (hdI_hi_neg : (derivIntervalCore e I cfg).hi < 0)
+    (_hdI_hi_neg : (derivIntervalCore e I cfg).hi < 0)
     (hCont : ContinuousOn (evalFunc1 e) (Set.Icc I.lo I.hi))
     (hf_Ihi_pos : 0 < evalFunc1 e I.hi) :
     let c : ℚ := I.midpoint

@@ -960,17 +960,188 @@ theorem log_taylor_remainder_bound' (J : IntervalRat) (c : ℚ) (n : ℕ) (z : �
     |Real.log z - Real.log c -
       Polynomial.aeval (z - (c : ℝ)) (logTaylorPolyAtCenter c n)| ≤
     (logLagrangeRemainder J c n : ℝ) := by
-  -- The proof uses the Lagrange remainder theorem for Taylor series.
-  -- Key mathematical facts:
-  -- 1. log is smooth on (0, ∞)
-  -- 2. The (n+1)th derivative of log at ξ is (-1)^n * n! / ξ^(n+1)
-  -- 3. By Lagrange: |R_n| = |f^(n+1)(ξ)| * |z-c|^(n+1) / (n+1)!
-  --                       = n! / ξ^(n+1) * |z-c|^(n+1) / (n+1)!
-  --                       = |z-c|^(n+1) / ((n+1) * ξ^(n+1))
-  -- 4. Since ξ ≥ J.lo > 0: |R_n| ≤ |z-c|^(n+1) / ((n+1) * J.lo^(n+1))
-  -- 5. Since z ∈ J and c is midpoint: |z-c| ≤ max(|J.lo-c|, |J.hi-c|) = r
-  -- 6. Therefore: |R_n| ≤ r^(n+1) / ((n+1) * J.lo^(n+1)) = logLagrangeRemainder
-  sorry
+  -- Step 1: Set up interval parameters
+  set a : ℝ := (J.lo : ℝ) with ha_def
+  set b : ℝ := (J.hi : ℝ) with hb_def
+  have hab : a ≤ b := by simp only [ha_def, hb_def]; exact_mod_cast J.le
+  have ha_pos : 0 < a := by simp only [ha_def]; exact_mod_cast hpos
+  have hc_pos : 0 < (c : ℝ) := lt_of_lt_of_le ha_pos hc_lo
+  have hz_mem : z ∈ Set.Icc a b := by
+    simp only [Set.mem_Icc, IntervalRat.mem_def, ha_def, hb_def] at hz ⊢
+    exact ⟨hz.1, hz.2⟩
+
+  -- Step 2: The Taylor polynomial evaluation equals the standard Taylor sum
+  -- logTaylorPolyAtCenter gives: Σ_{i=0}^n logTaylorCoeffs(i) * (z-c)^i
+  -- For i ≥ 1: logTaylorCoeffs c n i = (-1)^(i+1) / (i * c^i)
+  -- From iteratedDeriv_log: iteratedDeriv i log c = (-1)^(i-1) * (i-1)! * c^(-i)
+  -- So iteratedDeriv i log c / i! = (-1)^(i-1) / (i * c^i) = (-1)^(i+1) / (i * c^i)
+  -- The polynomials match!
+
+  -- Step 3: Apply taylor_remainder_bound_on
+  -- Use U = Set.Ioi 0 (positive reals)
+  have hU_open : IsOpen (Set.Ioi (0 : ℝ)) := isOpen_Ioi
+  have hI_sub : Set.Icc a b ⊆ Set.Ioi 0 := by
+    intro y hy
+    simp only [Set.mem_Ioi]
+    exact lt_of_lt_of_le ha_pos hy.1
+
+  -- log is ContDiffOn on (0, ∞)
+  have hlog_smooth : ContDiffOn ℝ (n + 1) Real.log (Set.Ioi 0) := by
+    apply (Real.contDiffOn_log.of_le le_top).mono
+    intro y hy
+    simp only [Set.mem_Ioi, Set.mem_compl_iff, Set.mem_singleton_iff] at hy ⊢
+    exact ne_of_gt hy
+
+  -- Step 4: Bound on (n+1)th derivative of log
+  -- |iteratedDeriv (n+1) log y| = n! / y^(n+1) for y > 0
+  set M : ℝ := n.factorial / a^(n+1) with hM_def
+  have hM_nonneg : 0 ≤ M := by
+    apply div_nonneg
+    · exact Nat.cast_nonneg _
+    · exact pow_nonneg (le_of_lt ha_pos) _
+
+  have hM_bound : ∀ y ∈ Set.Icc a b, ‖iteratedDeriv (n + 1) Real.log y‖ ≤ M := by
+    intro y hy
+    have hy_pos : 0 < y := lt_of_lt_of_le ha_pos hy.1
+    rw [LeanBound.Core.iteratedDeriv_log (Nat.succ_ne_zero n) hy_pos]
+    -- iteratedDeriv (n+1) log y = (-1)^n * n! * y^(-(n+1))
+    have hn_sub : (n + 1 : ℕ) - 1 = n := Nat.succ_sub_one n
+    simp only [Real.norm_eq_abs, hn_sub, zpow_neg, zpow_natCast]
+    rw [abs_mul, abs_mul]
+    have h_neg_one : |(-1 : ℝ)^n| = 1 := by
+      rw [abs_pow]
+      simp only [abs_neg, abs_one, one_pow]
+    rw [h_neg_one, one_mul]
+    have h_fact : |(n.factorial : ℝ)| = n.factorial := abs_of_nonneg (Nat.cast_nonneg _)
+    rw [h_fact]
+    -- Goal: n! * |(y^(n+1))⁻¹| ≤ n! / a^(n+1)
+    simp only [abs_inv, abs_pow, abs_of_pos hy_pos]
+    -- Goal: n! * (y^(n+1))⁻¹ ≤ n! / a^(n+1)
+    rw [← div_eq_mul_inv]
+    apply div_le_div_of_nonneg_left (Nat.cast_nonneg _)
+    · exact pow_pos ha_pos _
+    · exact pow_le_pow_left₀ (le_of_lt ha_pos) hy.1 _
+
+  -- Step 5: Apply the Taylor remainder bound
+  have hTaylor := LeanBound.Core.taylor_remainder_bound_on hU_open hI_sub hc_lo hc_hi
+    hlog_smooth hM_bound hM_nonneg z hz_mem
+
+  -- Step 6: Convert the standard Taylor sum to logTaylorPolyAtCenter
+  -- The standard sum is: Σ_{i=0}^n (iteratedDeriv i log c / i!) * (z-c)^i
+  -- For i=0: iteratedDeriv 0 log c / 0! = log c
+  -- For i≥1: iteratedDeriv i log c / i! = (-1)^(i+1) / (i * c^i) = logTaylorCoeffs c n i
+
+  -- Show coefficients match for i ≥ 1
+  have hcoeffs_match : ∀ i ∈ Finset.range (n + 1), i ≠ 0 →
+      (logTaylorCoeffs c n i : ℝ) = iteratedDeriv i Real.log c / i.factorial := by
+    intro i hi hi_ne
+    have hi_pos : 0 < i := Nat.pos_of_ne_zero hi_ne
+    have hi_le : i ≤ n := Nat.lt_succ_iff.mp (Finset.mem_range.mp hi)
+    simp only [logTaylorCoeffs, hi_ne, ite_false, hi_le, ite_true]
+    rw [LeanBound.Core.iteratedDeriv_log hi_ne hc_pos]
+    -- LHS: (-1)^(i+1) / (i * c^i)
+    -- RHS: ((-1)^(i-1) * (i-1)! * c^(-i)) / i!
+    have _hsub : i - 1 + 1 = i := Nat.sub_add_cancel hi_pos
+    have hfact : (i.factorial : ℝ) = i * (i - 1).factorial := by
+      have h := Nat.mul_factorial_pred hi_ne
+      simp only [← h, Nat.cast_mul]
+    simp only [zpow_neg, zpow_natCast]
+    rw [hfact]
+    have hc_ne : (c : ℝ) ≠ 0 := ne_of_gt hc_pos
+    have hci_ne : (c : ℝ)^i ≠ 0 := pow_ne_zero i hc_ne
+    have hi_ne' : (i : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hi_ne
+    have hfact_ne : ((i - 1).factorial : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr (Nat.factorial_ne_zero _)
+    field_simp
+    -- Need: (-1)^(i+1) * (i * (i-1)! * c^i) = (-1)^(i-1) * (i-1)! * (i * c^i)
+    have h_neg : (-1 : ℝ)^(i + 1) = (-1 : ℝ)^(i - 1) := by
+      have : i + 1 = i - 1 + 2 := by omega
+      rw [this, pow_add]
+      simp
+    rw [h_neg]
+    ring
+
+  -- Now convert the sum
+  have hsum_eq : ∑ i ∈ Finset.range (n + 1), (iteratedDeriv i Real.log c / i.factorial) * (z - c)^i
+      = Real.log c + Polynomial.aeval (z - (c : ℝ)) (logTaylorPolyAtCenter c n) := by
+    -- Split the sum: i=0 gives log c, i≥1 gives the polynomial
+    rw [Finset.sum_eq_add_sum_diff_singleton (Finset.mem_range.mpr (Nat.zero_lt_succ n))]
+    simp only [pow_zero, mul_one, iteratedDeriv_zero, Nat.factorial_zero, Nat.cast_one, div_one]
+    congr 1
+    -- The polynomial evaluation equals the sum over i≥1
+    rw [logTaylorPolyAtCenter]
+    -- Use that aeval is a ring homomorphism that preserves sums
+    rw [map_sum]
+    simp only [Polynomial.aeval_mul, Polynomial.aeval_C, Polynomial.aeval_X_pow]
+    -- The RHS sum is over range (n+1), but the i=0 term is 0 since logTaylorCoeffs c n 0 = 0
+    have h0_zero : (algebraMap ℚ ℝ) (logTaylorCoeffs c n 0) * (z - c)^0 = 0 := by
+      simp only [logTaylorCoeffs, ite_true, map_zero, zero_mul]
+    rw [Finset.sum_eq_add_sum_diff_singleton (Finset.mem_range.mpr (Nat.zero_lt_succ n))]
+    rw [h0_zero, zero_add]
+    apply Finset.sum_congr rfl
+    intro i hi
+    have hi_mem : i ∈ Finset.range (n + 1) := (Finset.mem_sdiff.mp hi).1
+    have hi_ne : i ≠ 0 := Finset.notMem_singleton.mp (Finset.mem_sdiff.mp hi).2
+    simp only [eq_ratCast]
+    rw [← hcoeffs_match i hi_mem hi_ne]
+
+  -- Step 7: Combine everything
+  -- Simplify the hTaylor hypothesis to match hsum_eq
+  have hTaylor' : ‖Real.log z - ∑ i ∈ Finset.range (n + 1),
+        iteratedDeriv i Real.log c / i.factorial * (z - c)^i‖
+      ≤ M * |z - c|^(n + 1) / (n + 1).factorial := hTaylor
+  rw [hsum_eq] at hTaylor'
+  -- hTaylor': ‖log z - (log c + poly(z-c))‖ ≤ M * |z-c|^(n+1) / (n+1)!
+  -- Convert: a - b - c = a - (b + c), then use Real.norm_eq_abs
+  have h_goal_eq : |Real.log z - Real.log c - Polynomial.aeval (z - (c : ℝ)) (logTaylorPolyAtCenter c n)|
+      = ‖Real.log z - (Real.log c + Polynomial.aeval (z - (c : ℝ)) (logTaylorPolyAtCenter c n))‖ := by
+    rw [Real.norm_eq_abs]; ring_nf
+  rw [h_goal_eq]
+
+  -- Step 8: Show M * |z-c|^(n+1) / (n+1)! ≤ logLagrangeRemainder J c n
+  have hbound : M * |z - c|^(n+1) / (n+1).factorial ≤ (logLagrangeRemainder J c n : ℝ) := by
+    unfold logLagrangeRemainder
+    have hpos' : ¬(J.lo ≤ 0) := not_le.mpr hpos
+    simp only [hpos', ite_false]
+    -- M = n! / a^(n+1), so M / (n+1)! = 1 / ((n+1) * a^(n+1))
+    have hfact_eq : M / (n+1).factorial = 1 / ((n+1) * a^(n+1)) := by
+      rw [hM_def, Nat.factorial_succ]
+      have ha_pow_ne : a^(n+1) ≠ 0 := pow_ne_zero _ (ne_of_gt ha_pos)
+      have hn1_ne : (n + 1 : ℝ) ≠ 0 := by positivity
+      have hfact_ne : (n.factorial : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr (Nat.factorial_ne_zero n)
+      field_simp
+      ring
+    -- The goal might be M * (|z-c|^(n+1) / (n+1)!) due to associativity
+    -- Convert to |z-c|^(n+1) / ((n+1) * a^(n+1))
+    have hstep : M * |z - c|^(n+1) / (n+1).factorial = |z - c|^(n+1) / ((n+1) * a^(n+1)) := by
+      have h1 : M * |z - c|^(n+1) / (n+1).factorial = M / (n+1).factorial * |z - c|^(n+1) := by ring
+      rw [h1, hfact_eq, one_div, inv_mul_eq_div]
+    calc M * |z - c|^(n+1) / (n+1).factorial
+        = |z - c|^(n+1) / ((n+1) * a^(n+1)) := hstep
+      _ ≤ _ := ?_
+    -- Goal: |z-c|^(n+1) / ((n+1) * a^(n+1)) ≤ r^(n+1) / ((n+1) * J.lo^(n+1))
+    -- where r = max(|J.lo - c|, |J.hi - c|)
+    have hz_c_bound : |z - c| ≤ max (|a - c|) (|b - c|) := by
+      have hzc : z - c ∈ Set.Icc (a - c) (b - c) := by
+        simp only [Set.mem_Icc]
+        constructor <;> linarith [hz_mem.1, hz_mem.2]
+      exact abs_le_max_abs_abs (Set.mem_Icc.mp hzc).1 (Set.mem_Icc.mp hzc).2
+    have ha_eq : a = (J.lo : ℝ) := ha_def
+    have hb_eq : b = (J.hi : ℝ) := hb_def
+    -- Push casts inside on RHS, and rewrite a → J.lo on LHS
+    simp only [Rat.cast_div, Rat.cast_pow, Rat.cast_mul, Rat.cast_natCast, Rat.cast_max,
+      Rat.cast_abs, Rat.cast_sub, Rat.cast_add, Rat.cast_one, ha_eq]
+    -- Now show |z-c|^(n+1) / ((n+1) * J.lo^(n+1)) ≤ max(...)^(n+1) / ((n+1) * J.lo^(n+1))
+    have hJlo_pos : (0 : ℝ) < J.lo := by exact_mod_cast hpos
+    have hn1_pos : (0 : ℝ) < n + 1 := by positivity
+    have hdenom_pos : 0 < (n + 1 : ℝ) * (J.lo : ℝ)^(n+1) := by
+      apply mul_pos hn1_pos
+      exact pow_pos hJlo_pos _
+    apply div_le_div_of_nonneg_right _ (le_of_lt hdenom_pos)
+    apply pow_le_pow_left₀ (abs_nonneg _)
+    calc |z - ↑c| ≤ max (|a - c|) (|b - c|) := hz_c_bound
+      _ = max (|(J.lo : ℝ) - c|) (|(J.hi : ℝ) - c|) := by rw [ha_eq, hb_eq]
+
+  exact le_trans hTaylor' hbound
 
 /-- log z ∈ (tmLog J n).evalSet z for all z in J when J.lo > 0.
     Uses the fact that log(z) = log(c) + Taylor expansion around c,
