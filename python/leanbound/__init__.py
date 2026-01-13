@@ -110,6 +110,9 @@ from .exceptions import (
     PARTIAL_FUNCTIONS,
 )
 
+# Neural network export
+from . import nn
+
 # Bug validation and false positive filtering
 from .validation import (
     ValidationVerdict,
@@ -207,4 +210,6 @@ __all__ = [
     "detect_interval_explosion",
     "is_intentional_behavior",
     "verify_counterexample_concrete",
+    # Neural network export
+    "nn",
 ]
