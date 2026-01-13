@@ -103,6 +103,30 @@ import LeanBound.Discovery
 #explore (Expr.cos (Expr.var 0)) on [0, 4]
 ```
 
+## High-Performance Dyadic Backend
+
+For deep expressions (neural networks, optimization loops, nested transcendentals), use the dyadic backend to avoid rational denominator explosion:
+
+```lean
+import LeanBound.Numerics.IntervalEvalDyadic
+
+open LeanBound.Core LeanBound.Numerics
+
+-- Convert interval to dyadic
+def I : IntervalDyadic := IntervalDyadic.ofIntervalRat ⟨0, 1, by norm_num⟩ (-53)
+
+-- Evaluate with standard precision (53 bits)
+def result := evalIntervalDyadic expr (fun _ => I) {}
+
+-- Use fast mode for very deep expressions
+def fast := evalIntervalDyadic expr (fun _ => I) DyadicConfig.fast
+
+-- Use high precision for tight bounds
+def precise := evalIntervalDyadic expr (fun _ => I) DyadicConfig.highPrecision
+```
+
+The dyadic backend keeps mantissa size bounded regardless of expression depth, while rational denominators grow exponentially.
+
 ## Direct API
 
 For more control, use the certificate API directly:

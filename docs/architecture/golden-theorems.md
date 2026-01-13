@@ -83,7 +83,7 @@ Not all expressions support all theorems.
 Fully computable subset enabling `native_decide`:
 
 - `const`, `var`, `add`, `mul`, `neg`
-- `sin`, `cos`, `exp` (via Taylor series)
+- `sin`, `cos`, `exp`, `sqrt` (via Taylor series)
 
 ### ExprSupportedWithInv
 
@@ -93,6 +93,19 @@ Extended support including partial functions:
 - `inv`, `log`, `atan`, `arsinh`, `atanh`, `sinc`, `erf`
 
 These require `evalInterval?` which may return `none` if domain constraints are violated.
+
+## Dyadic Backend
+
+For deep expressions, the dyadic evaluator provides the same correctness guarantees:
+
+```lean
+theorem evalIntervalDyadic_correct (e : Expr) (hsupp : ExprSupportedCore e)
+    (ρ_real : Nat → ℝ) (ρ_dyad : IntervalDyadicEnv)
+    (hρ : envMemDyadic ρ_real ρ_dyad) (cfg : DyadicConfig) :
+    Expr.eval ρ_real e ∈ evalIntervalDyadic e ρ_dyad cfg
+```
+
+The dyadic backend avoids denominator explosion by using fixed-precision arithmetic, making it essential for neural network verification and optimization loops.
 
 ## The Certificate Workflow
 

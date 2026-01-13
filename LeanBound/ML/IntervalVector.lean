@@ -30,8 +30,11 @@ open LeanBound.Core
 open LeanBound.Numerics
 
 -- Re-export IntervalVector from Numerics for convenience
-export LeanBound.Numerics.IntervalVector (
+export LeanBound.Numerics (
   IntervalVector
+)
+
+export LeanBound.Numerics.IntervalVector (
   scalarMulInterval
   mem_scalarMulInterval
   dotProduct

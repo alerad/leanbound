@@ -45,6 +45,16 @@ import LeanBound.Tactic.DyadicAuto
 -- Discovery Mode
 import LeanBound.Discovery
 
+-- Machine Learning
+import LeanBound.ML.Network
+import LeanBound.ML.IntervalVector
+import LeanBound.ML.Distillation
+import LeanBound.ML.Symbolic.ReLU
+import LeanBound.ML.Symbolic.Sigmoid
+
+-- ML Examples
+import LeanBound.Examples.ML.Distillation
+
 -- Examples
 import LeanBound.Examples.Basic
 import LeanBound.Examples.Calculus
@@ -161,6 +171,13 @@ export LeanBound.Discovery (
   verifyUpperBound
   verifyLowerBound
   searchRoots
+)
+
+-- Re-export ML/Distillation API
+export LeanBound.ML.Distillation (
+  SequentialNet
+  checkEquivalence
+  verify_equivalence
 )
 
 -- Re-export Search + Certify APIs

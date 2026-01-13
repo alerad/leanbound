@@ -197,15 +197,49 @@ The following have complete proofs with no `sorry`:
 - Root finding: bisection (existence) and Newton (uniqueness)
 - Integration bounds (`integrateInterval_correct`)
 
-### Work in Progress (v1.1)
+### Dyadic Backend (v1.1)
 
-The Dyadic arithmetic backend is under development for improved kernel performance:
+LeanBound includes two interval arithmetic backends:
 
-| Component | Status |
-|-----------|--------|
-| `Core/Dyadic.lean` | Shift/comparison lemmas need proofs |
-| `Core/IntervalDyadic.lean` | Interval operation correctness |
-| `Numerics/IntervalEvalDyadic.lean` | Evaluator correctness |
+| Backend | Best For | Trade-off |
+|---------|----------|-----------|
+| **Rational** (`evalIntervalCore`) | Simple expressions, exact precision | Denominators grow exponentially |
+| **Dyadic** (`evalIntervalDyadic`) | Deep expressions, neural networks | Fixed precision, slightly wider bounds |
+
+**When to use Dyadic:**
+- Neural network verification (1000s of operations)
+- Optimization loops (100s of iterations)
+- Deeply nested expressions (e.g., `sin(sin(sin(...)))`)
+- Taylor series with many terms
+
+**Performance comparison** (nested exp expressions):
+
+| Expression | Rational Denominator | Dyadic Mantissa |
+|------------|---------------------|-----------------|
+| `exp(exp(x))` | ~200 digits | 17 digits |
+| `exp(exp(exp(x)))` | ~2000 digits | 18 digits |
+| `exp(exp(exp(exp(x))))` | timeout | 42 digits |
+
+**Usage:**
+
+```lean
+import LeanBound.Numerics.IntervalEvalDyadic
+
+open LeanBound.Core LeanBound.Numerics
+
+-- Standard precision (53 bits, like IEEE double)
+def result := evalIntervalDyadic expr env {}
+
+-- Fast mode (30 bits, ~3x faster)
+def fast := evalIntervalDyadic expr env DyadicConfig.fast
+
+-- High precision (100 bits, tighter bounds)
+def precise := evalIntervalDyadic expr env DyadicConfig.highPrecision
+```
+
+See `LeanBound/Test/BenchmarkBackends.lean` for comprehensive benchmarks.
+
+### Work in Progress
 
 To find all `sorry` occurrences:
 
@@ -217,9 +251,9 @@ grep -rn "sorry" --include="*.lean" LeanBound/ | grep -v "no sorry"
 
 Priority areas:
 
-1. Completing Dyadic v1.1 proofs (shift lemmas, interval correctness)
-2. Additional functions (`asin`, `acos`, real powers)
-3. Subdivision strategies for optimization
+1. Additional functions (`asin`, `acos`, real powers)
+2. Subdivision strategies for optimization
+3. Tighter Taylor model bounds for transcendentals
 4. Documentation and examples
 
 Open an issue before starting major work.

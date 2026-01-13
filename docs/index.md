@@ -55,10 +55,12 @@ example : ∃ x ∈ I12, Expr.eval (fun _ => x)
 LeanBound operates on a **certificate-driven architecture**:
 
 1. **Reification**: Mathematical expressions are converted to an AST (`LeanBound.Core.Expr`)
-2. **Computation**: Algorithms run on the AST using rational interval arithmetic
+2. **Computation**: Algorithms run on the AST using interval arithmetic
 3. **Certification**: Golden theorems lift boolean results to semantic proofs about real numbers
 
 This separation allows efficient computation while maintaining full formal verification.
+
+**Two Backends**: LeanBound includes both rational (`evalIntervalCore`) and dyadic (`evalIntervalDyadic`) interval arithmetic. The dyadic backend is essential for deep expressions like neural networks, where rational denominators would explode exponentially.
 
 ## Installation
 

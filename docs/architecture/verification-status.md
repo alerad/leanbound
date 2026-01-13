@@ -65,6 +65,23 @@ Branch-and-bound with formal guarantees:
 
 - `integrateInterval_correct`: Riemann sum bounds contain the true integral
 
+### Dyadic Backend
+
+The high-performance dyadic interval evaluator is fully verified:
+
+- `evalIntervalDyadic_correct`: Dyadic evaluation produces sound intervals
+- `IntervalDyadic.mem_add`, `mem_mul`, `mem_neg`: FTIA for dyadic operations
+- `IntervalDyadic.roundOut_contains`: Outward rounding preserves containment
+
+The dyadic backend avoids rational denominator explosion by using fixed-precision arithmetic:
+
+| Expression | Rational Denominator | Dyadic Mantissa |
+|------------|---------------------|-----------------|
+| `exp(exp(x))` | ~200 digits | 17 digits |
+| `exp(exp(exp(x)))` | ~2000 digits | 18 digits |
+
+See `LeanBound/Test/BenchmarkBackends.lean` for performance comparisons.
+
 ## Incomplete (Contains `sorry`)
 
 These features work computationally but have gaps in formal proofs:
