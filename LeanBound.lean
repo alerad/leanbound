@@ -256,6 +256,7 @@ def eval₀_rat (e : LeanBound.Core.Expr) (x : ℚ) : ℚ :=
   | .cosh _ => 0  -- Not computable over ℚ
   | .tanh _ => 0  -- Not computable over ℚ
   | .sqrt _ => 0  -- Not computable over ℚ
+  | .pi => 157 / 50  -- Rational approximation of π ≈ 3.14
 
 /-- The unit interval [0, 1] -/
 def unitInterval : IntervalRat := ⟨0, 1, by norm_num⟩
