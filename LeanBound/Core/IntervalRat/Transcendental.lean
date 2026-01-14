@@ -169,6 +169,172 @@ theorem mem_atanhIntervalComputed {x : ℝ} {I : IntervalRatInUnitBall} (hx : x 
 
 /-! ### Square Root Interval -/
 
+/-- Integer square root (floor of sqrt).
+    Satisfies: `(intSqrtNat n)^2 ≤ n < (intSqrtNat n + 1)^2` -/
+def intSqrtNat (n : Nat) : Nat := Nat.sqrt n
+
+/-- Key property of Nat.sqrt: `Nat.sqrt n ^ 2 ≤ n` -/
+private theorem nat_sqrt_sq_le (n : Nat) : (Nat.sqrt n) ^ 2 ≤ n := Nat.sqrt_le' n
+
+/-- Key property of Nat.sqrt: `n < (Nat.sqrt n + 1) ^ 2` -/
+private theorem nat_lt_succ_sqrt_sq (n : Nat) : n < (Nat.sqrt n + 1) ^ 2 := by
+  have h := Nat.lt_succ_sqrt n
+  simp only [Nat.succ_eq_add_one] at h
+  rw [sq]
+  exact h
+
+/-- Rational lower bound for sqrt.
+    For q ≥ 0 with q = num/den, we compute floor(sqrt(num * den)) / den.
+    This gives: sqrtRatLower q ≤ sqrt(q).
+
+    The idea: sqrt(num/den) = sqrt(num*den)/den when properly scaled. -/
+def sqrtRatLower (q : ℚ) : ℚ :=
+  if q ≤ 0 then 0
+  else
+    let num := q.num.natAbs
+    let den := q.den
+    -- Compute floor(sqrt(num * den)) / den
+    let s := intSqrtNat (num * den)
+    (s : ℚ) / den
+
+/-- Rational upper bound for sqrt.
+    For q ≥ 0, we compute ceil(sqrt(num * den)) / den.
+    This gives: sqrt(q) ≤ sqrtRatUpper q. -/
+def sqrtRatUpper (q : ℚ) : ℚ :=
+  if q ≤ 0 then 0
+  else
+    let num := q.num.natAbs
+    let den := q.den
+    let prod := num * den
+    let s := intSqrtNat prod
+    -- If s^2 = prod, return s/den; else (s+1)/den
+    if s * s = prod then (s : ℚ) / den
+    else ((s + 1) : ℚ) / den
+
+/-- Helper: For non-negative q, q.num = q.num.natAbs -/
+private theorem rat_num_of_nonneg {q : ℚ} (hq : 0 ≤ q) : (q.num : ℤ) = q.num.natAbs := by
+  exact (Int.natAbs_of_nonneg (Rat.num_nonneg.mpr hq)).symm
+
+/-- Helper: For positive q, num.natAbs > 0 -/
+private theorem rat_num_natAbs_pos {q : ℚ} (hq : 0 < q) : 0 < q.num.natAbs := by
+  have h := Rat.num_pos.mpr hq
+  exact Int.natAbs_pos.mpr (ne_of_gt h)
+
+/-- Soundness of sqrtRatLower: sqrtRatLower q ≤ Real.sqrt q for q ≥ 0 -/
+theorem sqrtRatLower_le_sqrt {q : ℚ} (hq : 0 ≤ q) : (sqrtRatLower q : ℝ) ≤ Real.sqrt q := by
+  simp only [sqrtRatLower]
+  by_cases hq0 : q ≤ 0
+  · -- q = 0
+    have heq : q = 0 := le_antisymm hq0 hq
+    simp only [heq, le_refl, ↓reduceIte, Nat.cast_zero, zero_div, Rat.cast_zero, Real.sqrt_zero]
+  · -- q > 0
+    push_neg at hq0
+    simp only [not_le.mpr hq0, ↓reduceIte]
+    -- Key insight: sqrtRatLower returns s/den where s = floor(sqrt(num*den))
+    -- We want to show s/den ≤ sqrt(q) = sqrt(num/den)
+    -- This follows because s^2 ≤ num*den, so s ≤ sqrt(num*den), hence s/den ≤ sqrt(num*den)/den = sqrt(num/den)
+    have hden_pos : (0 : ℝ) < q.den := by exact_mod_cast q.den_pos
+    have hden_nn : (0 : ℝ) ≤ q.den := le_of_lt hden_pos
+    have hsqrt_den_pos : 0 < Real.sqrt q.den := Real.sqrt_pos.mpr hden_pos
+    have hnum_nn : 0 ≤ q.num := Rat.num_nonneg.mpr hq
+    have hnum_real_nn : (0 : ℝ) ≤ q.num.natAbs := Nat.cast_nonneg _
+    -- s^2 ≤ num * den
+    have hsq : (intSqrtNat (q.num.natAbs * q.den))^2 ≤ q.num.natAbs * q.den := nat_sqrt_sq_le _
+    -- s ≤ sqrt(num * den)
+    have hs_le : (intSqrtNat (q.num.natAbs * q.den) : ℝ) ≤ Real.sqrt (q.num.natAbs * q.den) := by
+      have h1 : ((intSqrtNat (q.num.natAbs * q.den) : ℕ) : ℝ) ^ 2 ≤ (q.num.natAbs * q.den : ℕ) := by
+        exact_mod_cast hsq
+      have h2 := Real.sqrt_sq (Nat.cast_nonneg (intSqrtNat (q.num.natAbs * q.den)))
+      calc (intSqrtNat (q.num.natAbs * q.den) : ℝ)
+          = Real.sqrt ((intSqrtNat (q.num.natAbs * q.den) : ℝ) ^ 2) := h2.symm
+        _ ≤ Real.sqrt ((q.num.natAbs * q.den : ℕ) : ℝ) := Real.sqrt_le_sqrt h1
+        _ = Real.sqrt ((q.num.natAbs : ℝ) * q.den) := by rw [Nat.cast_mul]
+    -- q = num/den and sqrt(q) = sqrt(num)/sqrt(den) = sqrt(num*den)/den (after scaling)
+    have hq_eq : (q : ℝ) = (q.num.natAbs : ℝ) / q.den := by
+      have habs : (q.num : ℤ) = q.num.natAbs := (Int.natAbs_of_nonneg hnum_nn).symm
+      rw [Rat.cast_def, habs, Int.cast_natCast]
+      simp only [Int.natAbs_natCast]
+    simp only [Rat.cast_div, Rat.cast_natCast]
+    rw [hq_eq, Real.sqrt_div hnum_real_nn, div_le_div_iff₀ hden_pos hsqrt_den_pos]
+    -- Goal: s * sqrt(den) ≤ sqrt(num) * den
+    calc (intSqrtNat (q.num.natAbs * q.den) : ℝ) * Real.sqrt q.den
+        ≤ Real.sqrt (q.num.natAbs * q.den) * Real.sqrt q.den := by
+            apply mul_le_mul_of_nonneg_right hs_le (le_of_lt hsqrt_den_pos)
+      _ = Real.sqrt ((q.num.natAbs : ℝ) * q.den) * Real.sqrt q.den := by simp only [Nat.cast_mul]
+      _ = Real.sqrt (q.num.natAbs) * Real.sqrt q.den * Real.sqrt q.den := by
+            rw [Real.sqrt_mul hnum_real_nn]
+      _ = Real.sqrt (q.num.natAbs) * (Real.sqrt q.den * Real.sqrt q.den) := by ring
+      _ = Real.sqrt (q.num.natAbs) * q.den := by rw [Real.mul_self_sqrt hden_nn]
+
+/-- Soundness of sqrtRatUpper: Real.sqrt q ≤ sqrtRatUpper q for q ≥ 0 -/
+theorem sqrt_le_sqrtRatUpper {q : ℚ} (hq : 0 ≤ q) : Real.sqrt q ≤ (sqrtRatUpper q : ℝ) := by
+  simp only [sqrtRatUpper]
+  by_cases hq0 : q ≤ 0
+  · -- q = 0
+    have heq : q = 0 := le_antisymm hq0 hq
+    simp only [heq, le_refl, ↓reduceIte, Nat.cast_zero, zero_div, Rat.cast_zero, Real.sqrt_zero]
+  · -- q > 0
+    push_neg at hq0
+    simp only [not_le.mpr hq0, ↓reduceIte]
+    have hden_pos : (0 : ℝ) < q.den := by exact_mod_cast q.den_pos
+    have hden_nn : (0 : ℝ) ≤ q.den := le_of_lt hden_pos
+    have hnum_nn : 0 ≤ q.num := Rat.num_nonneg.mpr hq
+    have hnum_real_nn : (0 : ℝ) ≤ q.num.natAbs := Nat.cast_nonneg _
+    have hsqrt_den_pos : 0 < Real.sqrt q.den := Real.sqrt_pos.mpr hden_pos
+    have hq_eq : (q : ℝ) = (q.num.natAbs : ℝ) / q.den := by
+      have habs : (q.num : ℤ) = q.num.natAbs := (Int.natAbs_of_nonneg hnum_nn).symm
+      rw [Rat.cast_def, habs, Int.cast_natCast]
+      simp only [Int.natAbs_natCast]
+    set prod := q.num.natAbs * q.den
+    set s := intSqrtNat prod
+    rw [hq_eq, Real.sqrt_div hnum_real_nn]
+    by_cases hperfect : s * s = prod
+    · -- Perfect square case: s^2 = num * den, so sqrt(num*den) = s
+      simp only [hperfect, ↓reduceIte, Rat.cast_div, Rat.cast_natCast]
+      rw [div_le_div_iff₀ hsqrt_den_pos hden_pos]
+      -- sqrt(num*den) = s since s^2 = num*den
+      have heq_sqrt : Real.sqrt ((q.num.natAbs : ℝ) * q.den) = s := by
+        have h : (s : ℝ) ^ 2 = (q.num.natAbs : ℝ) * q.den := by
+          calc (s : ℝ) ^ 2 = ((s * s : ℕ) : ℝ) := by push_cast; ring
+            _ = (prod : ℝ) := by exact_mod_cast hperfect
+            _ = (q.num.natAbs : ℝ) * q.den := by simp only [prod, Nat.cast_mul]
+        rw [← h, Real.sqrt_sq (Nat.cast_nonneg s)]
+      calc Real.sqrt q.num.natAbs * q.den
+          = Real.sqrt q.num.natAbs * (Real.sqrt q.den * Real.sqrt q.den) := by
+              rw [Real.mul_self_sqrt hden_nn]
+        _ = (Real.sqrt q.num.natAbs * Real.sqrt q.den) * Real.sqrt q.den := by ring
+        _ = Real.sqrt ((q.num.natAbs : ℝ) * q.den) * Real.sqrt q.den := by
+              rw [Real.sqrt_mul hnum_real_nn]
+        _ = (s : ℝ) * Real.sqrt q.den := by rw [heq_sqrt]
+        _ ≤ (s : ℝ) * Real.sqrt q.den := le_refl _
+    · -- Non-perfect square case: prod < (s+1)^2
+      simp only [hperfect, ↓reduceIte, Rat.cast_div, Rat.cast_natCast]
+      rw [div_le_div_iff₀ hsqrt_den_pos hden_pos]
+      have hlt : prod < (s + 1) ^ 2 := nat_lt_succ_sqrt_sq prod
+      have hsqrt_le : Real.sqrt ((q.num.natAbs : ℝ) * q.den) ≤ (s + 1 : ℕ) := by
+        have h1 : (q.num.natAbs : ℝ) * q.den < ((s + 1) ^ 2 : ℕ) := by
+          calc (q.num.natAbs : ℝ) * q.den = (prod : ℕ) := by simp only [prod, Nat.cast_mul]
+            _ < ((s + 1) ^ 2 : ℕ) := by exact_mod_cast hlt
+        have h2 : (0 : ℝ) ≤ (s + 1 : ℕ) := Nat.cast_nonneg _
+        have h3 : Real.sqrt ((q.num.natAbs : ℝ) * q.den) < Real.sqrt (((s + 1) ^ 2 : ℕ) : ℝ) :=
+          Real.sqrt_lt_sqrt (mul_nonneg hnum_real_nn hden_nn) h1
+        have h4 : Real.sqrt (((s + 1) ^ 2 : ℕ) : ℝ) = (s + 1 : ℕ) := by
+          have : (((s + 1) ^ 2 : ℕ) : ℝ) = ((s + 1 : ℕ) : ℝ) ^ 2 := by push_cast; ring
+          rw [this, Real.sqrt_sq h2]
+        exact le_of_lt (h3.trans_eq h4)
+      have hgoal : Real.sqrt q.num.natAbs * q.den ≤ ((s + 1 : ℕ) : ℝ) * Real.sqrt q.den := by
+        calc Real.sqrt q.num.natAbs * q.den
+            = Real.sqrt q.num.natAbs * (Real.sqrt q.den * Real.sqrt q.den) := by
+                rw [Real.mul_self_sqrt hden_nn]
+          _ = (Real.sqrt q.num.natAbs * Real.sqrt q.den) * Real.sqrt q.den := by ring
+          _ = Real.sqrt ((q.num.natAbs : ℝ) * q.den) * Real.sqrt q.den := by
+                rw [Real.sqrt_mul hnum_real_nn]
+          _ ≤ ((s + 1 : ℕ) : ℝ) * Real.sqrt q.den := by
+              exact mul_le_mul_of_nonneg_right hsqrt_le (le_of_lt hsqrt_den_pos)
+      convert hgoal using 2
+      push_cast
+      ring
+
 /-- Square root interval with conservative bounds.
     For a non-negative interval [lo, hi], sqrt is monotone so:
     sqrt([lo, hi]) ⊆ [0, max(hi, 1)]
@@ -177,6 +343,28 @@ theorem mem_atanhIntervalComputed {x : ℝ} {I : IntervalRatInUnitBall} (hx : x 
     The upper bound uses max(hi, 1) which satisfies sqrt(x) ≤ max(x, 1) for x ≥ 0. -/
 def sqrtInterval (I : IntervalRat) : IntervalRat :=
   ⟨0, max I.hi 1, by simp [le_max_iff]⟩
+
+/-- Improved square root interval with tight lower bounds.
+    For a non-negative interval [lo, hi] with lo ≥ 0:
+    - Lower bound: sqrtRatLower(lo)
+    - Upper bound: sqrtRatUpper(hi)
+
+    For intervals crossing zero, we use 0 as lower bound. -/
+def sqrtIntervalTight (I : IntervalRat) : IntervalRat :=
+  if h : 0 ≤ I.lo then
+    ⟨sqrtRatLower I.lo, max (sqrtRatUpper I.hi) 1,
+     by
+       simp only [le_max_iff]
+       left
+       have hlo_le_hi : I.lo ≤ I.hi := I.le
+       -- sqrtRatLower I.lo ≤ sqrtRatUpper I.hi
+       have h1 : (sqrtRatLower I.lo : ℝ) ≤ Real.sqrt I.lo := sqrtRatLower_le_sqrt h
+       have h2 : Real.sqrt I.hi ≤ (sqrtRatUpper I.hi : ℝ) := sqrt_le_sqrtRatUpper (le_trans h hlo_le_hi)
+       have h3 : Real.sqrt I.lo ≤ Real.sqrt I.hi := Real.sqrt_le_sqrt (by exact_mod_cast hlo_le_hi)
+       have h4 : (sqrtRatLower I.lo : ℝ) ≤ (sqrtRatUpper I.hi : ℝ) := le_trans h1 (le_trans h3 h2)
+       exact_mod_cast h4⟩
+  else
+    ⟨0, max (sqrtRatUpper I.hi) 1, by simp [le_max_iff]⟩
 
 /-- Helper: sqrt(x) ≤ max(x, 1) for x ≥ 0 -/
 private theorem sqrt_le_max_one {x : ℝ} (hx : 0 ≤ x) : Real.sqrt x ≤ max x 1 := by
@@ -224,6 +412,63 @@ theorem mem_sqrtInterval' {x : ℝ} {I : IntervalRat} (hx : x ∈ I) :
     · exact le_refl 0
     · calc (0 : ℝ) ≤ 1 := by norm_num
         _ ≤ max (I.hi : ℝ) 1 := le_max_right _ _
+
+/-- Helper: upper bound for tight sqrt interval is valid -/
+private theorem sqrt_le_sqrtRatUpper_max {x : ℝ} {q : ℚ} (hx : 0 ≤ x) (hxq : x ≤ q) :
+    Real.sqrt x ≤ max (sqrtRatUpper q : ℝ) 1 := by
+  by_cases hq0 : q ≤ 0
+  · -- q ≤ 0 means x ≤ 0, combined with hx gives x = 0
+    have hx0 : x = 0 := le_antisymm (le_trans hxq (by exact_mod_cast hq0)) hx
+    rw [hx0, Real.sqrt_zero]
+    exact le_trans (by norm_num : (0 : ℝ) ≤ 1) (le_max_right (sqrtRatUpper q : ℝ) (1 : ℝ))
+  · -- q > 0
+    push_neg at hq0
+    calc Real.sqrt x
+        ≤ Real.sqrt q := Real.sqrt_le_sqrt hxq
+      _ ≤ sqrtRatUpper q := sqrt_le_sqrtRatUpper (le_of_lt hq0)
+      _ ≤ max (sqrtRatUpper q : ℝ) 1 := le_max_left (sqrtRatUpper q : ℝ) (1 : ℝ)
+
+/-- Soundness of tight sqrt interval: if x ∈ I and x ≥ 0, then sqrt(x) ∈ sqrtIntervalTight I -/
+theorem mem_sqrtIntervalTight {x : ℝ} {I : IntervalRat} (hx : x ∈ I) (hx_nn : 0 ≤ x) :
+    Real.sqrt x ∈ sqrtIntervalTight I := by
+  simp only [sqrtIntervalTight]
+  split_ifs with hlo
+  · -- Case: I.lo ≥ 0 (positive interval)
+    simp only [mem_def, Rat.cast_max, Rat.cast_one]
+    constructor
+    · -- Lower bound: sqrtRatLower I.lo ≤ sqrt(x)
+      have h1 : (sqrtRatLower I.lo : ℝ) ≤ Real.sqrt I.lo := sqrtRatLower_le_sqrt hlo
+      have h2 : Real.sqrt (I.lo : ℝ) ≤ Real.sqrt x := Real.sqrt_le_sqrt hx.1
+      exact le_trans h1 h2
+    · -- Upper bound: sqrt(x) ≤ max (sqrtRatUpper I.hi) 1
+      exact sqrt_le_sqrtRatUpper_max hx_nn hx.2
+  · -- Case: I.lo < 0 (interval crosses zero)
+    simp only [mem_def, Rat.cast_zero, Rat.cast_max, Rat.cast_one]
+    constructor
+    · exact Real.sqrt_nonneg x
+    · exact sqrt_le_sqrtRatUpper_max hx_nn hx.2
+
+/-- General soundness of tight sqrt interval: works for any x ∈ I (including negative).
+    When x < 0, Real.sqrt x = 0, which is always in the result interval. -/
+theorem mem_sqrtIntervalTight' {x : ℝ} {I : IntervalRat} (hx : x ∈ I) :
+    Real.sqrt x ∈ sqrtIntervalTight I := by
+  rcases le_or_gt 0 x with hnn | hneg
+  · exact mem_sqrtIntervalTight hx hnn
+  · -- x < 0: sqrt(x) = 0
+    have hsqrt_zero : Real.sqrt x = 0 := Real.sqrt_eq_zero'.mpr (le_of_lt hneg)
+    simp only [sqrtIntervalTight]
+    split_ifs with hlo
+    · -- I.lo ≥ 0, but x ∈ I and x < 0, contradiction
+      have h : (I.lo : ℝ) ≤ x := hx.1
+      have hlo_real : (0 : ℝ) ≤ I.lo := by exact_mod_cast hlo
+      have hx_nn : 0 ≤ x := le_trans hlo_real h
+      exact absurd hx_nn (not_le.mpr hneg)
+    · -- I.lo < 0
+      simp only [mem_def, Rat.cast_zero, Rat.cast_max, Rat.cast_one]
+      rw [hsqrt_zero]
+      constructor
+      · exact le_refl 0
+      · exact le_trans (by norm_num : (0 : ℝ) ≤ 1) (le_max_right (sqrtRatUpper I.hi : ℝ) (1 : ℝ))
 
 end IntervalRat
 

@@ -265,6 +265,37 @@ theorem evalIntervalDyadic_correct (e : Expr) (hsupp : ExprSupportedCore e)
   | sqrt _ ih =>
     simp only [Expr.eval_sqrt, evalIntervalDyadic, sqrtIntervalDyadic]
     exact IntervalDyadic.mem_sqrt' ih cfg.precision
+  | sinh _ ih =>
+    simp only [Expr.eval_sinh, evalIntervalDyadic, sinhIntervalDyadic]
+    have hrat := IntervalDyadic.mem_toIntervalRat.mp ih
+    have hsinh := IntervalRat.mem_sinhComputable hrat cfg.taylorDepth
+    exact IntervalDyadic.mem_ofIntervalRat hsinh cfg.precision hprec
+  | cosh _ ih =>
+    simp only [Expr.eval_cosh, evalIntervalDyadic, coshIntervalDyadic]
+    have hrat := IntervalDyadic.mem_toIntervalRat.mp ih
+    have hcosh := IntervalRat.mem_coshComputable hrat cfg.taylorDepth
+    exact IntervalDyadic.mem_ofIntervalRat hcosh cfg.precision hprec
+  | @tanh e' _ ih =>
+    simp only [Expr.eval_tanh, evalIntervalDyadic, tanhIntervalDyadic]
+    -- tanh x ∈ [-1, 1] for all x
+    rw [IntervalDyadic.mem_def, Dyadic.toRat_ofInt, Dyadic.toRat_ofInt]
+    simp only [Int.cast_neg, Int.cast_one, Rat.cast_neg, Rat.cast_one]
+    set x := Expr.eval ρ_real e' with hx
+    constructor
+    -- tanh x ≥ -1: use tanh = sinh/cosh, cosh > 0, and -cosh ≤ sinh
+    · rw [Real.tanh_eq_sinh_div_cosh]
+      have hcosh : Real.cosh x > 0 := Real.cosh_pos x
+      rw [le_div_iff₀ hcosh, neg_one_mul]
+      rw [Real.sinh_eq, Real.cosh_eq]
+      have h1 : Real.exp x > 0 := Real.exp_pos x
+      linarith
+    -- tanh x ≤ 1: use sinh ≤ cosh (since exp(-x) > 0)
+    · rw [Real.tanh_eq_sinh_div_cosh]
+      have hcosh : Real.cosh x > 0 := Real.cosh_pos x
+      rw [div_le_one₀ hcosh]
+      rw [Real.sinh_eq, Real.cosh_eq]
+      have h2 : Real.exp (-x) > 0 := Real.exp_pos (-x)
+      linarith
 
 /-! ### Convenience Functions -/
 

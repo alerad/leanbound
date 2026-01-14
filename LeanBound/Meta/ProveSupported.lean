@@ -144,7 +144,7 @@ on the structure of `e : LeanBound.Core.Expr`.
     This function inspects the head constant of the AST expression and
     recursively builds the appropriate proof constructor.
 
-    Supported: const, var, add, mul, neg, sin, cos, exp, sqrt
+    Supported: const, var, add, mul, neg, sin, cos, exp, sqrt, sinh, cosh, tanh
     Not supported: inv, log, atan, arsinh, atanh -/
 partial def mkSupportedCoreProof (e_ast : Lean.Expr) : MetaM Lean.Expr := do
   -- Get the head constant and arguments
@@ -207,6 +207,24 @@ partial def mkSupportedCoreProof (e_ast : Lean.Expr) : MetaM Lean.Expr := do
     let e := args[0]!
     let h ← mkSupportedCoreProof e
     mkAppM ``LeanBound.Numerics.ExprSupportedCore.sqrt #[h]
+
+  else if fn.isConstOf ``LeanBound.Core.Expr.sinh then
+    -- Expr.sinh e => ExprSupportedCore.sinh h
+    let e := args[0]!
+    let h ← mkSupportedCoreProof e
+    mkAppM ``LeanBound.Numerics.ExprSupportedCore.sinh #[h]
+
+  else if fn.isConstOf ``LeanBound.Core.Expr.cosh then
+    -- Expr.cosh e => ExprSupportedCore.cosh h
+    let e := args[0]!
+    let h ← mkSupportedCoreProof e
+    mkAppM ``LeanBound.Numerics.ExprSupportedCore.cosh #[h]
+
+  else if fn.isConstOf ``LeanBound.Core.Expr.tanh then
+    -- Expr.tanh e => ExprSupportedCore.tanh h
+    let e := args[0]!
+    let h ← mkSupportedCoreProof e
+    mkAppM ``LeanBound.Numerics.ExprSupportedCore.tanh #[h]
 
   else
     throwError "Cannot generate ExprSupportedCore proof for: {e_ast}\n\

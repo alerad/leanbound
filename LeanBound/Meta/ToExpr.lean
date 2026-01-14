@@ -125,6 +125,18 @@ def mkExprErf (e : Lean.Expr) : MetaM Lean.Expr :=
 def mkExprSqrt (e : Lean.Expr) : MetaM Lean.Expr :=
   mkAppM ``LeanBound.Core.Expr.sqrt #[e]
 
+/-- Build `LeanBound.Core.Expr.sinh e`. -/
+def mkExprSinh (e : Lean.Expr) : MetaM Lean.Expr :=
+  mkAppM ``LeanBound.Core.Expr.sinh #[e]
+
+/-- Build `LeanBound.Core.Expr.cosh e`. -/
+def mkExprCosh (e : Lean.Expr) : MetaM Lean.Expr :=
+  mkAppM ``LeanBound.Core.Expr.cosh #[e]
+
+/-- Build `LeanBound.Core.Expr.tanh e`. -/
+def mkExprTanh (e : Lean.Expr) : MetaM Lean.Expr :=
+  mkAppM ``LeanBound.Core.Expr.tanh #[e]
+
 /-! ## Constant Extraction
 
 Lean stores numbers as complex hierarchies of type classes (`OfNat.ofNat`,
@@ -358,6 +370,19 @@ where
     | Real.sqrt x =>
       let ex ← toLeanBoundExpr x
       return some (← mkExprSqrt ex)
+
+    -- Handle hyperbolic functions
+    | Real.sinh x =>
+      let ex ← toLeanBoundExpr x
+      return some (← mkExprSinh ex)
+
+    | Real.cosh x =>
+      let ex ← toLeanBoundExpr x
+      return some (← mkExprCosh ex)
+
+    | Real.tanh x =>
+      let ex ← toLeanBoundExpr x
+      return some (← mkExprTanh ex)
 
     | _ => return none
 

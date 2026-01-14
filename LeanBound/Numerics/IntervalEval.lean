@@ -51,7 +51,7 @@ open LeanBound.Core
 /-! ### Core supported expression subset (computable) -/
 
 /-- Predicate indicating an expression is in the computable core subset.
-    Supports: const, var, add, mul, neg, sin, cos, exp, sqrt
+    Supports: const, var, add, mul, neg, sin, cos, exp, sqrt, sinh, cosh, tanh
     Does NOT support: inv, log, atan, arsinh, atanh -/
 inductive ExprSupportedCore : Expr → Prop where
   | const (q : ℚ) : ExprSupportedCore (Expr.const q)
@@ -65,6 +65,9 @@ inductive ExprSupportedCore : Expr → Prop where
   | cos {e : Expr} : ExprSupportedCore e → ExprSupportedCore (Expr.cos e)
   | exp {e : Expr} : ExprSupportedCore e → ExprSupportedCore (Expr.exp e)
   | sqrt {e : Expr} : ExprSupportedCore e → ExprSupportedCore (Expr.sqrt e)
+  | sinh {e : Expr} : ExprSupportedCore e → ExprSupportedCore (Expr.sinh e)
+  | cosh {e : Expr} : ExprSupportedCore e → ExprSupportedCore (Expr.cosh e)
+  | tanh {e : Expr} : ExprSupportedCore e → ExprSupportedCore (Expr.tanh e)
 
 /-! ### Extended supported expression subset (with exp) -/
 
@@ -320,7 +323,7 @@ def evalIntervalCore (e : Expr) (ρ : IntervalEnv) (cfg : EvalConfig := {}) : In
   | Expr.sinh e => sinhInterval (evalIntervalCore e ρ cfg) cfg.taylorDepth
   | Expr.cosh e => coshInterval (evalIntervalCore e ρ cfg) cfg.taylorDepth
   | Expr.tanh e => tanhInterval (evalIntervalCore e ρ cfg)  -- Tight bounds: [-1, 1]
-  | Expr.sqrt e => IntervalRat.sqrtInterval (evalIntervalCore e ρ cfg)
+  | Expr.sqrt e => IntervalRat.sqrtIntervalTight (evalIntervalCore e ρ cfg)
 
 /-- Computable interval evaluator with division support.
 
@@ -385,7 +388,7 @@ def evalIntervalCoreWithDiv (e : Expr) (ρ : IntervalEnv) (cfg : EvalConfig := {
   | Expr.sinh e => sinhInterval (evalIntervalCoreWithDiv e ρ cfg) cfg.taylorDepth
   | Expr.cosh e => coshInterval (evalIntervalCoreWithDiv e ρ cfg) cfg.taylorDepth
   | Expr.tanh e => tanhInterval (evalIntervalCoreWithDiv e ρ cfg)  -- Tight bounds: [-1, 1]
-  | Expr.sqrt e => IntervalRat.sqrtInterval (evalIntervalCoreWithDiv e ρ cfg)
+  | Expr.sqrt e => IntervalRat.sqrtIntervalTight (evalIntervalCoreWithDiv e ρ cfg)
 
 /-- A real environment is contained in an interval environment -/
 def envMem (ρ_real : Nat → ℝ) (ρ_int : IntervalEnv) : Prop :=
@@ -427,7 +430,16 @@ theorem evalIntervalCore_correct (e : Expr) (hsupp : ExprSupportedCore e)
     exact IntervalRat.mem_expComputable ih cfg.taylorDepth
   | sqrt _ ih =>
     simp only [Expr.eval_sqrt, evalIntervalCore]
-    exact IntervalRat.mem_sqrtInterval' ih
+    exact IntervalRat.mem_sqrtIntervalTight' ih
+  | sinh _ ih =>
+    simp only [Expr.eval_sinh, evalIntervalCore, sinhInterval]
+    exact IntervalRat.mem_sinhComputable ih cfg.taylorDepth
+  | cosh _ ih =>
+    simp only [Expr.eval_cosh, evalIntervalCore, coshInterval]
+    exact IntervalRat.mem_coshComputable ih cfg.taylorDepth
+  | tanh _ ih =>
+    simp only [Expr.eval_tanh, evalIntervalCore, tanhInterval]
+    exact mem_tanhInterval ih
 
 /-! ### Extended interval evaluation (noncomputable, supports exp) -/
 

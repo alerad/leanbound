@@ -90,6 +90,21 @@ theorem exprSupportedCore_continuousOn (e : LExpr) (hsupp : LeanBound.Numerics.E
     -- sqrt is continuous on [0, ∞) and returns 0 for negative inputs
     -- For ContinuousOn on any set, we use Real.continuous_sqrt
     exact Real.continuous_sqrt.comp_continuousOn ih
+  | sinh _ ih =>
+    simp only [LeanBound.Core.Expr.eval]
+    exact Real.continuous_sinh.comp_continuousOn ih
+  | cosh _ ih =>
+    simp only [LeanBound.Core.Expr.eval]
+    exact Real.continuous_cosh.comp_continuousOn ih
+  | tanh _ ih =>
+    simp only [LeanBound.Core.Expr.eval]
+    -- tanh = sinh / cosh, and cosh > 0 everywhere
+    have hcont : Continuous Real.tanh := by
+      have h : Real.tanh = fun x => Real.sinh x / Real.cosh x := by
+        ext x; exact Real.tanh_eq_sinh_div_cosh x
+      rw [h]
+      exact Real.continuous_sinh.div Real.continuous_cosh (fun x => ne_of_gt (Real.cosh_pos x))
+    exact hcont.comp_continuousOn ih
 
 /-- Specialized version for Icc intervals (common case for interval_roots) -/
 theorem exprSupportedCore_continuousOn_Icc (e : LExpr) (hsupp : LeanBound.Numerics.ExprSupportedCore e)

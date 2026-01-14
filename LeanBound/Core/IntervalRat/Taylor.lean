@@ -99,17 +99,52 @@ def expRemainderBoundComputable (I : IntervalRat) (n : ℕ) : IntervalRat :=
       · exact Nat.cast_nonneg _
     linarith⟩
 
-/-- Computable interval enclosure for exp using Taylor series.
-
-    exp(x) = ∑_{i=0}^{n} x^i/i! + R where |R| ≤ exp(|x|) * |x|^{n+1} / (n+1)!
-    We conservatively bound exp(|x|) by 3^(⌈|x|⌉+1).
-
-    This is fully computable using only rational arithmetic. -/
-def expComputable (I : IntervalRat) (n : ℕ := 10) : IntervalRat :=
+/-- Computable interval enclosure for exp at a single rational point.
+    Uses Taylor series with tight remainder bound. -/
+def expPointComputable (q : ℚ) (n : ℕ := 10) : IntervalRat :=
+  let I := singleton q
   let coeffs := expTaylorCoeffs n
   let polyVal := evalTaylorSeries coeffs I
   let remainder := expRemainderBoundComputable I n
   add polyVal remainder
+
+/-- Hull of two intervals: smallest interval containing both. -/
+def hull (I J : IntervalRat) : IntervalRat :=
+  ⟨min I.lo J.lo, max I.hi J.hi, le_trans (min_le_left _ _) (le_trans I.le (le_max_left _ _))⟩
+
+/-- Membership in hull -/
+theorem mem_hull_left {x : ℝ} {I J : IntervalRat} (hx : x ∈ I) : x ∈ hull I J := by
+  simp only [hull, mem_def, Rat.cast_min, Rat.cast_max]
+  constructor
+  · exact le_trans (min_le_left _ _) hx.1
+  · exact le_trans hx.2 (le_max_left _ _)
+
+theorem mem_hull_right {x : ℝ} {I J : IntervalRat} (hx : x ∈ J) : x ∈ hull I J := by
+  simp only [hull, mem_def, Rat.cast_min, Rat.cast_max]
+  constructor
+  · exact le_trans (min_le_right _ _) hx.1
+  · exact le_trans hx.2 (le_max_right _ _)
+
+/-- Computable interval enclosure for exp using Taylor series with monotonicity optimization.
+
+    exp(x) = ∑_{i=0}^{n} x^i/i! + R where |R| ≤ exp(|x|) * |x|^{n+1} / (n+1)!
+
+    For intervals not crossing 0, we use endpoint evaluation and take the hull,
+    which is tighter than direct Taylor evaluation due to interval widening.
+
+    This is fully computable using only rational arithmetic. -/
+def expComputable (I : IntervalRat) (n : ℕ := 10) : IntervalRat :=
+  if I.hi ≤ 0 ∨ 0 ≤ I.lo then
+    -- Interval doesn't cross 0: use endpoint evaluation for tighter bounds
+    let expLo := expPointComputable I.lo n
+    let expHi := expPointComputable I.hi n
+    hull expLo expHi
+  else
+    -- Interval crosses 0: use standard Taylor (can't avoid interval widening)
+    let coeffs := expTaylorCoeffs n
+    let polyVal := evalTaylorSeries coeffs I
+    let remainder := expRemainderBoundComputable I n
+    add polyVal remainder
 
 /-! ### Computable sin via Taylor series -/
 
@@ -765,33 +800,82 @@ theorem cos_taylor_remainder_in_interval {x : ℝ} {I : IntervalRat} (hx : x ∈
 
 /-! ### FTIA for computable functions -/
 
-/-- FTIA for expComputable: Real.exp x ∈ expComputable I n for any x ∈ I.
+/-- FTIA for single-point exp: Real.exp q ∈ expPointComputable q n -/
+theorem mem_expPointComputable (q : ℚ) (n : ℕ) :
+    Real.exp q ∈ expPointComputable q n := by
+  simp only [expPointComputable]
+  have hq_mem : (q : ℝ) ∈ singleton q := mem_singleton q
+  -- Strategy: exp q = poly(q) + remainder, with both in their respective intervals
+  have hpoly_mem : ∑ i ∈ Finset.range (n + 1), (iteratedDeriv i Real.exp 0 / i.factorial) * (q : ℝ) ^ i
+      ∈ evalTaylorSeries (expTaylorCoeffs n) (singleton q) := by
+    have hsum_eq : ∑ i ∈ Finset.range (n + 1), (iteratedDeriv i Real.exp 0 / i.factorial) * (q : ℝ) ^ i =
+        ∑ i ∈ Finset.range (n + 1), (1 / i.factorial : ℝ) * (q : ℝ) ^ i := by
+      apply Finset.sum_congr rfl; intro i _; rw [iteratedDeriv_exp_zero, one_div]
+    rw [hsum_eq]; exact mem_evalTaylorSeries_exp hq_mem n
+  have hrem_mem := exp_taylor_remainder_in_interval hq_mem n
+  have heq : Real.exp q = (∑ i ∈ Finset.range (n + 1),
+      (iteratedDeriv i Real.exp 0 / i.factorial) * (q : ℝ) ^ i) +
+      (Real.exp q - ∑ i ∈ Finset.range (n + 1),
+        (iteratedDeriv i Real.exp 0 / i.factorial) * (q : ℝ) ^ i) := by ring
+  rw [heq]; exact mem_add hpoly_mem hrem_mem
 
-    This theorem establishes that the computable Taylor series evaluation
-    correctly bounds the real exponential function. The proof uses the
-    Taylor remainder micro-lemma which encapsulates the Lagrange form. -/
 theorem mem_expComputable {x : ℝ} {I : IntervalRat} (hx : x ∈ I) (n : ℕ) :
     Real.exp x ∈ expComputable I n := by
   simp only [expComputable]
-  -- Strategy: exp x = poly(x) + remainder, with both in their respective intervals
-
-  -- Polynomial part ∈ evalTaylorSeries
-  have hpoly_mem : ∑ i ∈ Finset.range (n + 1), (iteratedDeriv i Real.exp 0 / i.factorial) * x ^ i
-      ∈ evalTaylorSeries (expTaylorCoeffs n) I := by
-    have hsum_eq : ∑ i ∈ Finset.range (n + 1), (iteratedDeriv i Real.exp 0 / i.factorial) * x ^ i =
-        ∑ i ∈ Finset.range (n + 1), (1 / i.factorial : ℝ) * x ^ i := by
-      apply Finset.sum_congr rfl; intro i _; rw [iteratedDeriv_exp_zero, one_div]
-    rw [hsum_eq]; exact mem_evalTaylorSeries_exp hx n
-
-  -- Remainder part ∈ expRemainderBoundComputable (via micro-lemma)
-  have hrem_mem := exp_taylor_remainder_in_interval hx n
-
-  -- Combine: exp x = poly + rem
-  have heq : Real.exp x = (∑ i ∈ Finset.range (n + 1),
-      (iteratedDeriv i Real.exp 0 / i.factorial) * x ^ i) +
-      (Real.exp x - ∑ i ∈ Finset.range (n + 1),
-        (iteratedDeriv i Real.exp 0 / i.factorial) * x ^ i) := by ring
-  rw [heq]; exact mem_add hpoly_mem hrem_mem
+  split_ifs with h
+  · -- Interval doesn't cross 0: use endpoint evaluation and monotonicity
+    -- exp is monotone increasing, so exp([lo, hi]) ⊆ hull(exp(lo), exp(hi))
+    have hlo_mem := mem_expPointComputable I.lo n
+    have hhi_mem := mem_expPointComputable I.hi n
+    -- Since x ∈ [lo, hi] and exp is monotone, exp(x) ∈ [exp(lo), exp(hi)]
+    -- The hull contains both exp(lo) and exp(hi), so it contains exp(x)
+    rcases h with ⟨hhi_neg⟩ | ⟨hlo_pos⟩
+    · -- Case: hi ≤ 0 (negative interval)
+      -- exp(lo) ≤ exp(x) ≤ exp(hi) by monotonicity
+      have hx_le_hi : x ≤ I.hi := hx.2
+      have hlo_le_x : (I.lo : ℝ) ≤ x := hx.1
+      have hexp_mono1 : Real.exp x ≤ Real.exp I.hi := Real.exp_le_exp.mpr hx_le_hi
+      have hexp_mono2 : Real.exp I.lo ≤ Real.exp x := Real.exp_le_exp.mpr hlo_le_x
+      -- exp(x) is between exp(lo) and exp(hi), both of which are in the hull
+      simp only [hull, mem_def, Rat.cast_min, Rat.cast_max]
+      constructor
+      · -- lower bound: min(expLo.lo, expHi.lo) ≤ exp(x)
+        calc (min (expPointComputable I.lo n).lo (expPointComputable I.hi n).lo : ℝ)
+            ≤ (expPointComputable I.lo n).lo := by exact_mod_cast min_le_left _ _
+          _ ≤ Real.exp I.lo := hlo_mem.1
+          _ ≤ Real.exp x := hexp_mono2
+      · -- upper bound: exp(x) ≤ max(expLo.hi, expHi.hi)
+        calc Real.exp x ≤ Real.exp I.hi := hexp_mono1
+          _ ≤ (expPointComputable I.hi n).hi := hhi_mem.2
+          _ ≤ max ((expPointComputable I.lo n).hi : ℝ) ((expPointComputable I.hi n).hi : ℝ) := le_max_right _ _
+    · -- Case: 0 ≤ lo (positive interval) - same argument
+      have hx_le_hi : x ≤ I.hi := hx.2
+      have hlo_le_x : (I.lo : ℝ) ≤ x := hx.1
+      have hexp_mono1 : Real.exp x ≤ Real.exp I.hi := Real.exp_le_exp.mpr hx_le_hi
+      have hexp_mono2 : Real.exp I.lo ≤ Real.exp x := Real.exp_le_exp.mpr hlo_le_x
+      simp only [hull, mem_def, Rat.cast_min, Rat.cast_max]
+      constructor
+      · calc (min (expPointComputable I.lo n).lo (expPointComputable I.hi n).lo : ℝ)
+            ≤ (expPointComputable I.lo n).lo := by exact_mod_cast min_le_left _ _
+          _ ≤ Real.exp I.lo := hlo_mem.1
+          _ ≤ Real.exp x := hexp_mono2
+      · calc Real.exp x ≤ Real.exp I.hi := hexp_mono1
+          _ ≤ (expPointComputable I.hi n).hi := hhi_mem.2
+          _ ≤ max ((expPointComputable I.lo n).hi : ℝ) ((expPointComputable I.hi n).hi : ℝ) := le_max_right _ _
+  · -- Interval crosses 0: use standard Taylor
+    -- Strategy: exp x = poly(x) + remainder, with both in their respective intervals
+    have hpoly_mem : ∑ i ∈ Finset.range (n + 1), (iteratedDeriv i Real.exp 0 / i.factorial) * x ^ i
+        ∈ evalTaylorSeries (expTaylorCoeffs n) I := by
+      have hsum_eq : ∑ i ∈ Finset.range (n + 1), (iteratedDeriv i Real.exp 0 / i.factorial) * x ^ i =
+          ∑ i ∈ Finset.range (n + 1), (1 / i.factorial : ℝ) * x ^ i := by
+        apply Finset.sum_congr rfl; intro i _; rw [iteratedDeriv_exp_zero, one_div]
+      rw [hsum_eq]; exact mem_evalTaylorSeries_exp hx n
+    have hrem_mem := exp_taylor_remainder_in_interval hx n
+    have heq : Real.exp x = (∑ i ∈ Finset.range (n + 1),
+        (iteratedDeriv i Real.exp 0 / i.factorial) * x ^ i) +
+        (Real.exp x - ∑ i ∈ Finset.range (n + 1),
+          (iteratedDeriv i Real.exp 0 / i.factorial) * x ^ i) := by ring
+    rw [heq]; exact mem_add hpoly_mem hrem_mem
 
 /-- FTIA for sinComputable: Real.sin x ∈ sinComputable I n for any x ∈ I.
 
@@ -860,6 +944,65 @@ theorem mem_cosComputable {x : ℝ} {I : IntervalRat} (hx : x ∈ I) (n : ℕ) :
   -- Intersect and conclude
   have ⟨K, hK_eq, hK_mem⟩ := mem_intersect hraw_mem hglobal_mem
   simp only [hK_eq]; exact hK_mem
+
+/-- FTIA for sinhComputable: Real.sinh x ∈ sinhComputable I n for any x ∈ I.
+
+    The proof uses the exp interval membership and the definition sinh = (exp - exp(-·))/2. -/
+theorem mem_sinhComputable {x : ℝ} {I : IntervalRat} (hx : x ∈ I) (n : ℕ) :
+    Real.sinh x ∈ sinhComputable I n := by
+  simp only [sinhComputable]
+  have hexp_pos := mem_expComputable hx n
+  have hexp_neg := mem_expComputable (mem_neg hx) n
+  rw [Real.sinh_eq]
+  simp only [mem_def] at hexp_pos hexp_neg ⊢
+  obtain ⟨hexp_pos_lo, hexp_pos_hi⟩ := hexp_pos
+  obtain ⟨hexp_neg_lo, hexp_neg_hi⟩ := hexp_neg
+  split_ifs with h
+  · constructor <;> { simp only [Rat.cast_div, Rat.cast_sub, Rat.cast_ofNat]; linarith }
+  · -- Fallback case: use min/max bounds
+    constructor
+    · simp only [Rat.cast_min, Rat.cast_div, Rat.cast_sub, Rat.cast_ofNat]
+      apply min_le_of_left_le; linarith
+    · simp only [Rat.cast_max, Rat.cast_div, Rat.cast_sub, Rat.cast_ofNat]
+      apply le_max_of_le_right; linarith
+
+/-- FTIA for coshComputable: Real.cosh x ∈ coshComputable I n for any x ∈ I.
+
+    The proof uses the exp interval membership and the definition cosh = (exp + exp(-·))/2. -/
+theorem mem_coshComputable {x : ℝ} {I : IntervalRat} (hx : x ∈ I) (n : ℕ) :
+    Real.cosh x ∈ coshComputable I n := by
+  simp only [coshComputable]
+  have hexp_pos := mem_expComputable hx n
+  have hexp_neg := mem_expComputable (mem_neg hx) n
+  rw [Real.cosh_eq]
+  simp only [mem_def] at hexp_pos hexp_neg ⊢
+  obtain ⟨hexp_pos_lo, hexp_pos_hi⟩ := hexp_pos
+  obtain ⟨hexp_neg_lo, hexp_neg_hi⟩ := hexp_neg
+  -- cosh x ≥ 1 always (AM-GM)
+  have hcosh_ge_one : 1 ≤ (Real.exp x + Real.exp (-x)) / 2 := by
+    have h1 : Real.exp x > 0 := Real.exp_pos x
+    have h2 : Real.exp (-x) > 0 := Real.exp_pos (-x)
+    have hprod : Real.exp x * Real.exp (-x) = 1 := by
+      rw [← Real.exp_add, add_neg_cancel, Real.exp_zero]
+    have ham : Real.exp x + Real.exp (-x) ≥ 2 := by nlinarith [sq_nonneg (Real.exp x - Real.exp (-x)), hprod]
+    linarith
+  split_ifs with h
+  · constructor
+    · -- Lower bound: max 1 coshLo ≤ cosh x
+      simp only [Rat.cast_max, Rat.cast_one, Rat.cast_div, Rat.cast_add, Rat.cast_ofNat]
+      apply max_le
+      · exact hcosh_ge_one
+      · linarith
+    · -- Upper bound
+      simp only [Rat.cast_div, Rat.cast_add, Rat.cast_ofNat]
+      linarith
+  · -- Fallback
+    constructor
+    · simp only [Rat.cast_one]
+      exact hcosh_ge_one
+    · simp only [Rat.cast_max, Rat.cast_ofNat, Rat.cast_div, Rat.cast_add]
+      apply le_max_of_le_right
+      linarith
 
 end IntervalRat
 

@@ -359,6 +359,15 @@ theorem evalExtended_correct_core (e : Expr) (hsupp : ExprSupportedCore e)
   | sqrt _ ih =>
     simp only [Expr.eval_sqrt, evalExtended]
     exact mem_liftUnary (fun x I hx => IntervalRat.mem_sqrtInterval' hx) ih
+  | sinh _ ih =>
+    simp only [Expr.eval_sinh, evalExtended]
+    exact mem_liftUnary (fun x I hx => IntervalRat.mem_sinhComputable hx cfg.taylorDepth) ih
+  | cosh _ ih =>
+    simp only [Expr.eval_cosh, evalExtended]
+    exact mem_liftUnary (fun x I hx => IntervalRat.mem_coshComputable hx cfg.taylorDepth) ih
+  | tanh _ ih =>
+    simp only [Expr.eval_tanh, evalExtended]
+    exact mem_liftUnary (fun x I hx => mem_tanhInterval hx) ih
 
 /-! ## Utility: Hull Soundness -/
 

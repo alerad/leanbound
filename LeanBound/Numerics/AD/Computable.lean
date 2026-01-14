@@ -142,6 +142,15 @@ theorem evalDualCore_val_correct (e : Expr) (hsupp : ExprSupportedCore e)
   | sqrt _ ih =>
     simp only [Expr.eval_sqrt, evalDualCore, DualInterval.sqrt]
     exact IntervalRat.mem_sqrtInterval' ih
+  | sinh _ ih =>
+    simp only [Expr.eval_sinh, evalDualCore, DualInterval.sinhCore]
+    exact IntervalRat.mem_sinhComputable ih cfg.taylorDepth
+  | cosh _ ih =>
+    simp only [Expr.eval_cosh, evalDualCore, DualInterval.coshCore]
+    exact IntervalRat.mem_coshComputable ih cfg.taylorDepth
+  | tanh _ ih =>
+    simp only [Expr.eval_tanh, evalDualCore, DualInterval.tanhCore]
+    exact mem_tanhInterval ih
 
 /-- Correctness theorem for computable dual derivative component.
     Uses ExprSupported since derivative correctness requires differentiability. -/
