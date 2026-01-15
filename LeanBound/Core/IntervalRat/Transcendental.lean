@@ -402,23 +402,161 @@ def sqrtIntervalTight (I : IntervalRat) : IntervalRat :=
 /-- Soundness of sqrtRatLowerPrec: sqrtRatLowerPrec q k ≤ Real.sqrt q for q ≥ 0 -/
 theorem sqrtRatLowerPrec_le_sqrt {q : ℚ} (hq : 0 ≤ q) (k : Nat) :
     (sqrtRatLowerPrec q k : ℝ) ≤ Real.sqrt q := by
-  -- The proof follows the same pattern as sqrtRatLower_le_sqrt
-  -- Scale up by 4^k doesn't change the inequality structure
   simp only [sqrtRatLowerPrec]
   by_cases hq0 : q ≤ 0
   · have heq : q = 0 := le_antisymm hq0 hq
     simp only [heq, le_refl, ↓reduceIte, Rat.cast_zero, Real.sqrt_zero]
   · push_neg at hq0
     simp only [not_le.mpr hq0, ↓reduceIte]
-    -- The scaled computation gives floor(sqrt(num * 4^k * den)) / (den * 2^k)
-    -- This is ≤ sqrt(num * 4^k * den) / (den * 2^k) = sqrt(num/den) = sqrt(q)
-    sorry
+    -- Setup: let num = q.num.natAbs, den = q.den, scaledNum = num * 4^k
+    -- We compute s = floor(sqrt(scaledNum * den)) and return s / (den * 2^k)
+    -- Goal: s / (den * 2^k) ≤ sqrt(q) = sqrt(num/den)
+    have hden_pos : (0 : ℝ) < q.den := by exact_mod_cast q.den_pos
+    have hden_nn : (0 : ℝ) ≤ q.den := le_of_lt hden_pos
+    have hnum_nn : 0 ≤ q.num := Rat.num_nonneg.mpr hq
+    have hnum_real_nn : (0 : ℝ) ≤ q.num.natAbs := Nat.cast_nonneg _
+    have h2k_pos : (0 : ℝ) < 2 ^ k := pow_pos (by norm_num : (0 : ℝ) < 2) k
+    have h2k_nn : (0 : ℝ) ≤ 2 ^ k := le_of_lt h2k_pos
+    have hden2k_pos : (0 : ℝ) < q.den * 2 ^ k := mul_pos hden_pos h2k_pos
+
+    set num := q.num.natAbs
+    set den := q.den
+    set scaledNum := num * 2 ^ (2 * k)
+    set prod := scaledNum * den
+    set s := intSqrtNat prod
+
+    -- s^2 ≤ prod, so s ≤ sqrt(prod)
+    have hsq : s ^ 2 ≤ prod := nat_sqrt_sq_le prod
+    have hs_le_sqrt : (s : ℝ) ≤ Real.sqrt prod := by
+      have h1 : (s : ℝ) ^ 2 ≤ prod := by exact_mod_cast hsq
+      have h2 := Real.sqrt_sq (Nat.cast_nonneg s)
+      calc (s : ℝ) = Real.sqrt ((s : ℝ) ^ 2) := h2.symm
+        _ ≤ Real.sqrt prod := Real.sqrt_le_sqrt h1
+
+    -- sqrt(prod) = sqrt(num * 4^k * den) = sqrt(num * den) * 2^k
+    have h4k_eq : (2 : ℝ) ^ (2 * k) = ((2 : ℝ) ^ k) ^ 2 := by ring
+    have hsqrt_prod : Real.sqrt (prod : ℕ) = Real.sqrt (num * den) * 2 ^ k := by
+      calc Real.sqrt (prod : ℕ) = Real.sqrt ((scaledNum * den : ℕ) : ℝ) := by simp only [prod]
+        _ = Real.sqrt ((num * 2 ^ (2 * k) * den : ℕ) : ℝ) := by simp only [scaledNum]
+        _ = Real.sqrt ((num : ℝ) * 2 ^ (2 * k) * den) := by push_cast; ring_nf
+        _ = Real.sqrt ((num : ℝ) * den * (2 ^ k) ^ 2) := by rw [h4k_eq]; ring_nf
+        _ = Real.sqrt ((num : ℝ) * den) * Real.sqrt ((2 ^ k) ^ 2) := by
+            rw [Real.sqrt_mul (mul_nonneg hnum_real_nn hden_nn)]
+        _ = Real.sqrt ((num : ℝ) * den) * 2 ^ k := by rw [Real.sqrt_sq h2k_nn]
+
+    -- q = num/den, so sqrt(q) = sqrt(num)/sqrt(den) = sqrt(num*den)/den
+    have hq_eq : (q : ℝ) = (num : ℝ) / den := by
+      have habs : (q.num : ℤ) = num := (Int.natAbs_of_nonneg hnum_nn).symm
+      rw [Rat.cast_def, habs, Int.cast_natCast]
+
+    -- Final calculation
+    simp only [Rat.cast_div, Rat.cast_natCast, Rat.cast_mul, Rat.cast_pow, Rat.cast_ofNat]
+    rw [hq_eq, Real.sqrt_div hnum_real_nn]
+    have hsqrt_den_pos : 0 < Real.sqrt den := Real.sqrt_pos.mpr hden_pos
+    -- Key helper: sqrt(num * den) / den = sqrt(num) / sqrt(den)
+    have hsqrt_conv : Real.sqrt (num * den) / den = Real.sqrt num / Real.sqrt den := by
+      have hden_sqrt_mul : Real.sqrt den * Real.sqrt den = den := Real.mul_self_sqrt hden_nn
+      calc Real.sqrt (num * den) / den
+          = Real.sqrt num * Real.sqrt den / den := by rw [Real.sqrt_mul hnum_real_nn]
+        _ = Real.sqrt num * Real.sqrt den / (Real.sqrt den * Real.sqrt den) := by rw [hden_sqrt_mul]
+        _ = Real.sqrt num * (Real.sqrt den / (Real.sqrt den * Real.sqrt den)) := by rw [mul_div_assoc]
+        _ = Real.sqrt num * (Real.sqrt den / Real.sqrt den / Real.sqrt den) := by rw [div_mul_eq_div_div]
+        _ = Real.sqrt num * (1 / Real.sqrt den) := by rw [div_self (ne_of_gt hsqrt_den_pos)]
+        _ = Real.sqrt num / Real.sqrt den := by rw [mul_one_div]
+    calc (s : ℝ) / (den * 2 ^ k)
+        ≤ Real.sqrt prod / (den * 2 ^ k) :=
+          div_le_div_of_nonneg_right hs_le_sqrt (le_of_lt hden2k_pos)
+      _ = (Real.sqrt (num * den) * 2 ^ k) / (den * 2 ^ k) := by rw [hsqrt_prod]
+      _ = Real.sqrt (num * den) / den := by rw [mul_div_mul_right _ _ (ne_of_gt h2k_pos)]
+      _ = Real.sqrt num / Real.sqrt den := hsqrt_conv
 
 /-- Soundness of sqrtRatUpperPrec: Real.sqrt q ≤ sqrtRatUpperPrec q k for q ≥ 0 -/
 theorem sqrt_le_sqrtRatUpperPrec {q : ℚ} (hq : 0 ≤ q) (k : Nat) :
     Real.sqrt q ≤ (sqrtRatUpperPrec q k : ℝ) := by
-  -- Similar to sqrt_le_sqrtRatUpper but with scaling
-  sorry
+  simp only [sqrtRatUpperPrec]
+  by_cases hq0 : q ≤ 0
+  · have heq : q = 0 := le_antisymm hq0 hq
+    simp only [heq, le_refl, ↓reduceIte, Rat.cast_zero, Real.sqrt_zero]
+  · push_neg at hq0
+    simp only [not_le.mpr hq0, ↓reduceIte]
+    have hden_pos : (0 : ℝ) < q.den := by exact_mod_cast q.den_pos
+    have hden_nn : (0 : ℝ) ≤ q.den := le_of_lt hden_pos
+    have hnum_nn : 0 ≤ q.num := Rat.num_nonneg.mpr hq
+    have hnum_real_nn : (0 : ℝ) ≤ q.num.natAbs := Nat.cast_nonneg _
+    have h2k_pos : (0 : ℝ) < 2 ^ k := pow_pos (by norm_num : (0 : ℝ) < 2) k
+    have h2k_nn : (0 : ℝ) ≤ 2 ^ k := le_of_lt h2k_pos
+    have hden2k_pos : (0 : ℝ) < q.den * 2 ^ k := mul_pos hden_pos h2k_pos
+
+    set num := q.num.natAbs
+    set den := q.den
+    set scaledNum := num * 2 ^ (2 * k)
+    set prod := scaledNum * den
+    set s := intSqrtNat prod
+
+    -- sqrt(prod) ≤ result (either s or s+1)
+    have h4k_eq : (2 : ℝ) ^ (2 * k) = ((2 : ℝ) ^ k) ^ 2 := by ring
+    have hsqrt_prod : Real.sqrt (prod : ℕ) = Real.sqrt (num * den) * 2 ^ k := by
+      calc Real.sqrt (prod : ℕ) = Real.sqrt ((scaledNum * den : ℕ) : ℝ) := by simp only [prod]
+        _ = Real.sqrt ((num * 2 ^ (2 * k) * den : ℕ) : ℝ) := by simp only [scaledNum]
+        _ = Real.sqrt ((num : ℝ) * 2 ^ (2 * k) * den) := by push_cast; ring_nf
+        _ = Real.sqrt ((num : ℝ) * den * (2 ^ k) ^ 2) := by rw [h4k_eq]; ring_nf
+        _ = Real.sqrt ((num : ℝ) * den) * Real.sqrt ((2 ^ k) ^ 2) := by
+            rw [Real.sqrt_mul (mul_nonneg hnum_real_nn hden_nn)]
+        _ = Real.sqrt ((num : ℝ) * den) * 2 ^ k := by rw [Real.sqrt_sq h2k_nn]
+
+    have hq_eq : (q : ℝ) = (num : ℝ) / den := by
+      have habs : (q.num : ℤ) = num := (Int.natAbs_of_nonneg hnum_nn).symm
+      rw [Rat.cast_def, habs, Int.cast_natCast]
+
+    have hsqrt_den_pos : 0 < Real.sqrt den := Real.sqrt_pos.mpr hden_pos
+    -- Key helper: sqrt(num * den) / den = sqrt(num) / sqrt(den)
+    have hsqrt_conv : Real.sqrt (num * den) / den = Real.sqrt num / Real.sqrt den := by
+      have hden_sqrt_mul : Real.sqrt den * Real.sqrt den = den := Real.mul_self_sqrt hden_nn
+      calc Real.sqrt (num * den) / den
+          = Real.sqrt num * Real.sqrt den / den := by rw [Real.sqrt_mul hnum_real_nn]
+        _ = Real.sqrt num * Real.sqrt den / (Real.sqrt den * Real.sqrt den) := by rw [hden_sqrt_mul]
+        _ = Real.sqrt num * (Real.sqrt den / (Real.sqrt den * Real.sqrt den)) := by rw [mul_div_assoc]
+        _ = Real.sqrt num * (Real.sqrt den / Real.sqrt den / Real.sqrt den) := by rw [div_mul_eq_div_div]
+        _ = Real.sqrt num * (1 / Real.sqrt den) := by rw [div_self (ne_of_gt hsqrt_den_pos)]
+        _ = Real.sqrt num / Real.sqrt den := by rw [mul_one_div]
+
+    by_cases hperfect : s * s = prod
+    · -- Perfect square: result = s, and sqrt(prod) = s
+      simp only [hperfect, ↓reduceIte, Rat.cast_div, Rat.cast_natCast, Rat.cast_mul,
+                 Rat.cast_pow, Rat.cast_ofNat]
+      have hsqrt_eq_s : Real.sqrt (prod : ℕ) = s := by
+        have h : (s : ℝ) ^ 2 = prod := by
+          calc (s : ℝ) ^ 2 = ((s * s : ℕ) : ℝ) := by push_cast; ring
+            _ = prod := by exact_mod_cast hperfect
+        rw [← h, Real.sqrt_sq (Nat.cast_nonneg s)]
+      rw [hq_eq, Real.sqrt_div hnum_real_nn]
+      calc Real.sqrt num / Real.sqrt den
+          = Real.sqrt (num * den) / den := hsqrt_conv.symm
+        _ = (Real.sqrt (num * den) * 2 ^ k) / (den * 2 ^ k) := by
+            rw [mul_div_mul_right _ _ (ne_of_gt h2k_pos)]
+        _ = Real.sqrt prod / (den * 2 ^ k) := by rw [hsqrt_prod]
+        _ ≤ (s : ℝ) / (den * 2 ^ k) := by rw [hsqrt_eq_s]
+    · -- Non-perfect square: result = s + 1, and sqrt(prod) < s + 1
+      simp only [hperfect, ↓reduceIte, Rat.cast_div, Rat.cast_natCast, Rat.cast_mul,
+                 Rat.cast_pow, Rat.cast_ofNat]
+      have hlt : prod < (s + 1) ^ 2 := nat_lt_succ_sqrt_sq prod
+      have hsqrt_lt : Real.sqrt (prod : ℕ) < (s + 1 : ℕ) := by
+        have h1 : (prod : ℝ) < ((s + 1) ^ 2 : ℕ) := by exact_mod_cast hlt
+        have h2 : (0 : ℝ) ≤ (s + 1 : ℕ) := Nat.cast_nonneg _
+        have h3 : Real.sqrt (prod : ℕ) < Real.sqrt (((s + 1) ^ 2 : ℕ) : ℝ) :=
+          Real.sqrt_lt_sqrt (Nat.cast_nonneg _) h1
+        have h4 : Real.sqrt (((s + 1) ^ 2 : ℕ) : ℝ) = (s + 1 : ℕ) := by
+          have : (((s + 1) ^ 2 : ℕ) : ℝ) = ((s + 1 : ℕ) : ℝ) ^ 2 := by push_cast; ring
+          rw [this, Real.sqrt_sq h2]
+        exact h3.trans_eq h4
+      rw [hq_eq, Real.sqrt_div hnum_real_nn]
+      calc Real.sqrt num / Real.sqrt den
+          = Real.sqrt (num * den) / den := hsqrt_conv.symm
+        _ = (Real.sqrt (num * den) * 2 ^ k) / (den * 2 ^ k) := by
+            rw [mul_div_mul_right _ _ (ne_of_gt h2k_pos)]
+        _ = Real.sqrt prod / (den * 2 ^ k) := by rw [hsqrt_prod]
+        _ ≤ (s + 1 : ℕ) / (den * 2 ^ k) :=
+            div_le_div_of_nonneg_right (le_of_lt hsqrt_lt) (le_of_lt hden2k_pos)
 
 /-- High-precision square root interval.
     For a non-negative interval [lo, hi] with lo ≥ 0:
