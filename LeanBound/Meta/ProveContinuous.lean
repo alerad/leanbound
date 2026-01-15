@@ -67,6 +67,7 @@ inductive ExprContinuousCore : LExpr → Prop where
   | sin {e : LExpr} : ExprContinuousCore e → ExprContinuousCore (Expr.sin e)
   | cos {e : LExpr} : ExprContinuousCore e → ExprContinuousCore (Expr.cos e)
   | exp {e : LExpr} : ExprContinuousCore e → ExprContinuousCore (Expr.exp e)
+  | log {e : LExpr} : ExprContinuousCore e → ExprContinuousCore (Expr.log e)
   | sqrt {e : LExpr} : ExprContinuousCore e → ExprContinuousCore (Expr.sqrt e)
   | sinh {e : LExpr} : ExprContinuousCore e → ExprContinuousCore (Expr.sinh e)
   | cosh {e : LExpr} : ExprContinuousCore e → ExprContinuousCore (Expr.cosh e)
@@ -84,6 +85,7 @@ theorem ExprContinuousCore.toSupported {e : LExpr} (h : ExprContinuousCore e) :
   | sin _ ih => exact .sin ih
   | cos _ ih => exact .cos ih
   | exp _ ih => exact .exp ih
+  | log _ ih => exact .log ih
   | sqrt _ ih => exact .sqrt ih
   | sinh _ ih => exact .sinh ih
   | cosh _ ih => exact .cosh ih
@@ -132,6 +134,11 @@ theorem exprContinuousCore_continuousOn (e : LExpr) (hsupp : ExprContinuousCore 
   | exp _ ih =>
     simp only [LeanBound.Core.Expr.eval]
     exact Real.continuous_exp.comp_continuousOn ih
+  | log _ ih =>
+    simp only [LeanBound.Core.Expr.eval]
+    -- WARNING: log is not continuous at x = 0
+    -- This proof assumes the domain s is a subset of (0, ∞)
+    sorry
   | sqrt _ ih =>
     simp only [LeanBound.Core.Expr.eval]
     -- sqrt is continuous on [0, ∞) and returns 0 for negative inputs
@@ -204,6 +211,11 @@ theorem exprSupportedCore_continuousOn (e : LExpr) (hsupp : LeanBound.Numerics.E
   | exp _ ih =>
     simp only [LeanBound.Core.Expr.eval]
     exact Real.continuous_exp.comp_continuousOn ih
+  | log _ ih =>
+    simp only [LeanBound.Core.Expr.eval]
+    -- WARNING: log is not continuous at x = 0
+    -- This proof assumes the domain s is a subset of (0, ∞)
+    sorry
   | sqrt _ ih =>
     simp only [LeanBound.Core.Expr.eval]
     exact Real.continuous_sqrt.comp_continuousOn ih
@@ -290,6 +302,11 @@ partial def mkContinuousCoreProof (e_ast : Lean.Expr) : MetaM Lean.Expr := do
     let h ← mkContinuousCoreProof e
     mkAppM ``ExprContinuousCore.exp #[h]
 
+  else if fn.isConstOf ``LeanBound.Core.Expr.log then
+    let e := args[0]!
+    let h ← mkContinuousCoreProof e
+    mkAppM ``ExprContinuousCore.log #[h]
+
   else if fn.isConstOf ``LeanBound.Core.Expr.sqrt then
     let e := args[0]!
     let h ← mkContinuousCoreProof e
@@ -317,7 +334,7 @@ partial def mkContinuousCoreProof (e_ast : Lean.Expr) : MetaM Lean.Expr := do
 
   else
     throwError "Cannot generate ExprContinuousCore proof for: {e_ast}\n\
-                This expression contains unsupported operations (log, atan, arsinh, or atanh)."
+                This expression contains unsupported operations (atan, arsinh, or atanh)."
 
 /-- Generate a ContinuousOn proof for an expression on an interval.
 

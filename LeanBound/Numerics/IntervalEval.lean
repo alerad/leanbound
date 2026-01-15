@@ -65,6 +65,7 @@ inductive ExprSupportedCore : Expr → Prop where
   | sin {e : Expr} : ExprSupportedCore e → ExprSupportedCore (Expr.sin e)
   | cos {e : Expr} : ExprSupportedCore e → ExprSupportedCore (Expr.cos e)
   | exp {e : Expr} : ExprSupportedCore e → ExprSupportedCore (Expr.exp e)
+  | log {e : Expr} : ExprSupportedCore e → ExprSupportedCore (Expr.log e)
   | sqrt {e : Expr} : ExprSupportedCore e → ExprSupportedCore (Expr.sqrt e)
   | sinh {e : Expr} : ExprSupportedCore e → ExprSupportedCore (Expr.sinh e)
   | cosh {e : Expr} : ExprSupportedCore e → ExprSupportedCore (Expr.cosh e)
@@ -488,7 +489,7 @@ def evalIntervalCore (e : Expr) (ρ : IntervalEnv) (cfg : EvalConfig := {}) : In
   | Expr.exp e => IntervalRat.expComputable (evalIntervalCore e ρ cfg) cfg.taylorDepth
   | Expr.sin e => IntervalRat.sinComputable (evalIntervalCore e ρ cfg) cfg.taylorDepth
   | Expr.cos e => IntervalRat.cosComputable (evalIntervalCore e ρ cfg) cfg.taylorDepth
-  | Expr.log _ => default  -- Not in ExprSupportedCore; use evalInterval? for log
+  | Expr.log e => IntervalRat.logComputable (evalIntervalCore e ρ cfg) cfg.taylorDepth
   | Expr.atan e => atanInterval (evalIntervalCore e ρ cfg)
   | Expr.arsinh e => arsinhInterval (evalIntervalCore e ρ cfg)
   | Expr.atanh _ => default  -- Not in ExprSupportedCore; use evalInterval? for atanh
@@ -539,22 +540,9 @@ def evalIntervalCoreWithDiv (e : Expr) (ρ : IntervalEnv) (cfg : EvalConfig := {
   | Expr.sin e => IntervalRat.sinComputable (evalIntervalCoreWithDiv e ρ cfg) cfg.taylorDepth
   | Expr.cos e => IntervalRat.cosComputable (evalIntervalCoreWithDiv e ρ cfg) cfg.taylorDepth
   | Expr.log e =>
-      -- Computable log bounds using the fact that for a > 0:
-      -- log(a) ≥ 1 - 1/a (touches at a=1, underestimates elsewhere)
-      -- log(b) ≤ b - 1   (touches at b=1, overestimates elsewhere)
+      -- Computable log using Taylor series via atanh reduction
       let arg := evalIntervalCoreWithDiv e ρ cfg
-      if h : arg.lo > 0 then
-        -- Compute bounds: lo = 1 - 1/arg.lo, hi = arg.hi - 1
-        -- We need lo ≤ hi, i.e., 1 - 1/arg.lo ≤ arg.hi - 1
-        -- i.e., 2 - arg.hi ≤ 1/arg.lo
-        -- This fails when arg.hi < 2 and arg.lo is very small.
-        -- So we just take the min/max to ensure validity.
-        let rawLo := 1 - 1/arg.lo  -- ≤ log(arg.lo)
-        let rawHi := arg.hi - 1     -- ≥ log(arg.hi)
-        ⟨min rawLo rawHi, max rawLo rawHi, by simp [min_le_max]⟩
-      else
-        -- Non-positive or zero in interval: use fallback
-        ⟨-20, 20, by norm_num⟩
+      IntervalRat.logComputable arg cfg.taylorDepth
   | Expr.atan e => atanInterval (evalIntervalCoreWithDiv e ρ cfg)
   | Expr.arsinh e => arsinhInterval (evalIntervalCoreWithDiv e ρ cfg)
   | Expr.atanh _ => ⟨-100, 100, by norm_num⟩  -- Safe wide default for atanh
@@ -604,6 +592,9 @@ theorem evalIntervalCore_correct (e : Expr) (hsupp : ExprSupportedCore e)
   | exp _ ih =>
     simp only [Expr.eval_exp, evalIntervalCore]
     exact IntervalRat.mem_expComputable ih cfg.taylorDepth
+  | log _ ih =>
+    simp only [Expr.eval_log, evalIntervalCore]
+    exact IntervalRat.mem_logComputable' ih cfg.taylorDepth
   | sqrt _ ih =>
     simp only [Expr.eval_sqrt, evalIntervalCore]
     exact IntervalRat.mem_sqrtIntervalTightPrec' ih

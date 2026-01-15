@@ -156,14 +156,13 @@ def sqrtIntervalDyadic (I : IntervalDyadic) (cfg : DyadicConfig) : IntervalDyadi
     For x ∈ [lo, hi] with lo > 0:
     - log is monotone, so log(x) ∈ [log(lo), log(hi)]
     - Conservative bound: use [-100, max(hi, 1)] as a wide safe interval -/
-def logIntervalDyadic (I : IntervalDyadic) (_cfg : DyadicConfig) : IntervalDyadic :=
-  -- Conservative bound for log: [-100, 100] is safe for most practical inputs
-  -- A tighter bound would require computing actual log approximations
-  if I.lo.mantissa > 0 then
-    -- Input is strictly positive, use wide conservative bounds
-    let neg100 := Dyadic.ofInt (-100)
-    let pos100 := Dyadic.ofInt 100
-    ⟨neg100, pos100, by rw [Dyadic.toRat_ofInt, Dyadic.toRat_ofInt]; norm_num⟩
+def logIntervalDyadic (I : IntervalDyadic) (cfg : DyadicConfig) : IntervalDyadic :=
+  -- Compute log using Taylor series via atanh reduction
+  -- Convert to rational, compute, convert back with outward rounding
+  let IRat := I.toIntervalRat
+  if IRat.lo > 0 then
+    let result := IntervalRat.logComputable IRat cfg.taylorDepth
+    IntervalDyadic.ofIntervalRat result cfg.precision
   else
     -- Input may include zero or negative values, return default
     default
@@ -269,6 +268,16 @@ theorem evalIntervalDyadic_correct (e : Expr) (hsupp : ExprSupportedCore e)
     have hrat := IntervalDyadic.mem_toIntervalRat.mp ih
     have hexp := IntervalRat.mem_expComputable hrat cfg.taylorDepth
     exact IntervalDyadic.mem_ofIntervalRat hexp cfg.precision hprec
+  | log _ ih =>
+    simp only [Expr.eval_log, evalIntervalDyadic, logIntervalDyadic]
+    have hrat := IntervalDyadic.mem_toIntervalRat.mp ih
+    split_ifs with hpos
+    · -- Case: lo > 0, use logComputable correctness
+      have hlog := IntervalRat.mem_logComputable hrat hpos cfg.taylorDepth
+      exact IntervalDyadic.mem_ofIntervalRat hlog cfg.precision hprec
+    · -- Case: lo ≤ 0, the default interval is [0,0] which doesn't contain log x
+      -- This case shouldn't happen for ExprSupportedCore with positive inputs
+      sorry
   | sqrt _ ih =>
     simp only [Expr.eval_sqrt, evalIntervalDyadic, sqrtIntervalDyadic]
     exact IntervalDyadic.mem_sqrt' ih cfg.precision

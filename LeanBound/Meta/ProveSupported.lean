@@ -202,6 +202,12 @@ partial def mkSupportedCoreProof (e_ast : Lean.Expr) : MetaM Lean.Expr := do
     let h ← mkSupportedCoreProof e
     mkAppM ``LeanBound.Numerics.ExprSupportedCore.exp #[h]
 
+  else if fn.isConstOf ``LeanBound.Core.Expr.log then
+    -- Expr.log e => ExprSupportedCore.log h
+    let e := args[0]!
+    let h ← mkSupportedCoreProof e
+    mkAppM ``LeanBound.Numerics.ExprSupportedCore.log #[h]
+
   else if fn.isConstOf ``LeanBound.Core.Expr.sqrt then
     -- Expr.sqrt e => ExprSupportedCore.sqrt h
     let e := args[0]!

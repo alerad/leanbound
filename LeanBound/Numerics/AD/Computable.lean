@@ -58,6 +58,13 @@ def cosCore (d : DualInterval) (n : ℕ := 10) : DualInterval :=
   { val := IntervalRat.cosComputable d.val n
     der := IntervalRat.mul (IntervalRat.neg (IntervalRat.sinComputable d.val n)) d.der }
 
+/-- Computable dual for log using Taylor series via atanh reduction.
+    Chain rule: d(log f) = f' / f -/
+def logCore (d : DualInterval) (n : ℕ := 20) : DualInterval :=
+  { val := IntervalRat.logComputable d.val n
+    -- der = d.der / d.val = d.der * (1/d.val)
+    der := IntervalRat.mul (invInterval d.val) d.der }
+
 /-- Computable dual for sinh using Taylor series (chain rule: d(sinh f) = cosh(f) * f') -/
 def sinhCore (d : DualInterval) (n : ℕ := 10) : DualInterval :=
   { val := IntervalRat.sinhComputable d.val n
@@ -95,7 +102,7 @@ def evalDualCore (e : Expr) (ρ : DualEnv) (cfg : EvalConfig := {}) : DualInterv
   | Expr.exp e => DualInterval.expCore (evalDualCore e ρ cfg) cfg.taylorDepth
   | Expr.sin e => DualInterval.sinCore (evalDualCore e ρ cfg) cfg.taylorDepth
   | Expr.cos e => DualInterval.cosCore (evalDualCore e ρ cfg) cfg.taylorDepth
-  | Expr.log _ => default
+  | Expr.log e => DualInterval.logCore (evalDualCore e ρ cfg) cfg.taylorDepth
   | Expr.atan e => DualInterval.atan (evalDualCore e ρ cfg)
   | Expr.arsinh e => DualInterval.arsinh (evalDualCore e ρ cfg)
   | Expr.atanh _ => default
@@ -141,6 +148,9 @@ theorem evalDualCore_val_correct (e : Expr) (hsupp : ExprSupportedCore e)
   | exp _ ih =>
     simp only [Expr.eval_exp, evalDualCore, DualInterval.expCore]
     exact IntervalRat.mem_expComputable ih cfg.taylorDepth
+  | log _ ih =>
+    simp only [Expr.eval_log, evalDualCore, DualInterval.logCore]
+    exact IntervalRat.mem_logComputable' ih cfg.taylorDepth
   | sqrt _ ih =>
     simp only [Expr.eval_sqrt, evalDualCore, DualInterval.sqrt]
     exact IntervalRat.mem_sqrtInterval' ih

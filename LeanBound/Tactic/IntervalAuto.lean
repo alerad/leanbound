@@ -604,6 +604,16 @@ where
         -- It's a raw expression - reify it
         reify func
 
+  /-- Try to generate ExprSupportedCore proof, falling back to ExprSupportedWithInv if needed.
+      Returns (supportProof, useWithInv) where useWithInv is true if we used WithInv. -/
+  getSupportProof (ast : Lean.Expr) : TacticM (Lean.Expr × Bool) := do
+    try
+      let proof ← mkSupportedCoreProof ast
+      return (proof, false)
+    catch _ =>
+      let proof ← mkSupportedWithInvProof ast
+      return (proof, true)
+
   /-- Prove ∀ x ∈ I, f x ≤ c -/
   proveForallLe (goal : MVarId) (intervalInfo : IntervalInfo) (func bound : Lean.Expr)
       (taylorDepth : Nat) : TacticM Unit := do
@@ -614,17 +624,21 @@ where
       -- 2. Extract rational bound from possible coercion
       let boundRat ← extractRatBound bound
 
-      -- 3. Generate support proof
-      let supportProof ← mkSupportedCoreProof ast
+      -- 3. Generate support proof (tries Core first, falls back to WithInv for log/inv)
+      let (supportProof, useWithInv) ← getSupportProof ast
 
       -- 4. Build config expression
       let cfgExpr ← mkAppM ``EvalConfig.mk #[toExpr taylorDepth]
 
-      -- 5. Apply appropriate theorem based on interval source
+      -- 5. Apply appropriate theorem based on interval source and support type
       match intervalInfo.fromSetIcc with
         | some (_lo, _hi, loRatExpr, hiRatExpr, leProof, _origLo, _origHi) =>
-          -- For Set.Icc goals, use the Core version which accepts ExprSupportedCore
-          let proof ← mkAppM ``verify_upper_bound_Icc_core #[ast, supportProof, loRatExpr, hiRatExpr, leProof, boundRat, cfgExpr]
+          -- Choose theorem and arguments based on support type
+          -- Note: WithInv theorems don't take a cfg parameter
+          let proof ← if useWithInv then
+            mkAppM ``verify_upper_bound_Icc_withInv #[ast, supportProof, loRatExpr, hiRatExpr, leProof, boundRat]
+          else
+            mkAppM ``verify_upper_bound_Icc_core #[ast, supportProof, loRatExpr, hiRatExpr, leProof, boundRat, cfgExpr]
 
           -- Try direct apply first
           setGoals [goal]
@@ -638,9 +652,13 @@ where
             -- Apply failed, so we need to use convert
             setGoals [goal]
 
-            -- Build the certificate expression (using checkUpperBound, not Smart)
+            -- Build the certificate expression (using appropriate check function)
+            -- Note: WithInv check functions don't take a cfg parameter
             let intervalRat ← mkAppM ``IntervalRat.mk #[loRatExpr, hiRatExpr, leProof]
-            let checkExpr ← mkAppM ``LeanBound.Numerics.Certificate.checkUpperBound #[ast, intervalRat, boundRat, cfgExpr]
+            let checkExpr ← if useWithInv then
+              mkAppM ``LeanBound.Numerics.Certificate.checkUpperBoundWithInv #[ast, intervalRat, boundRat]
+            else
+              mkAppM ``LeanBound.Numerics.Certificate.checkUpperBound #[ast, intervalRat, boundRat, cfgExpr]
 
             -- Build proof that checkUpperBound ... = true using native_decide via an auxiliary goal
             let certTy ← mkAppM ``Eq #[checkExpr, mkConst ``Bool.true]
@@ -696,8 +714,11 @@ where
               logWarning m!"interval_bound: Could not close side goal: {← g.getType}"
 
         | none =>
-          -- Direct IntervalRat goal - use verify_upper_bound which accepts ExprSupportedCore
-          let proof ← mkAppM ``verify_upper_bound #[ast, supportProof, intervalInfo.intervalRat, boundRat, cfgExpr]
+          -- Direct IntervalRat goal - use appropriate verify_upper_bound theorem
+          let proof ← if useWithInv then
+            mkAppM ``verify_upper_bound_withInv #[ast, supportProof, intervalInfo.intervalRat, boundRat]
+          else
+            mkAppM ``verify_upper_bound #[ast, supportProof, intervalInfo.intervalRat, boundRat, cfgExpr]
           let newGoals ← goal.apply proof
           setGoals newGoals
           for g in newGoals do
@@ -710,14 +731,18 @@ where
     goal.withContext do
       let ast ← getAst func
       let boundRat ← extractRatBound bound
-      let supportProof ← mkSupportedCoreProof ast
+      let (supportProof, useWithInv) ← getSupportProof ast
       let cfgExpr ← mkAppM ``EvalConfig.mk #[toExpr taylorDepth]
 
       -- Handle based on interval source
       match intervalInfo.fromSetIcc with
         | some (_lo, _hi, loRatExpr, hiRatExpr, leProof, _origLo, _origHi) =>
-          -- Use Core version which accepts ExprSupportedCore
-          let proof ← mkAppM ``verify_lower_bound_Icc_core #[ast, supportProof, loRatExpr, hiRatExpr, leProof, boundRat, cfgExpr]
+          -- Choose theorem and arguments based on support type
+          -- Note: WithInv theorems don't take a cfg parameter
+          let proof ← if useWithInv then
+            mkAppM ``verify_lower_bound_Icc_withInv #[ast, supportProof, loRatExpr, hiRatExpr, leProof, boundRat]
+          else
+            mkAppM ``verify_lower_bound_Icc_core #[ast, supportProof, loRatExpr, hiRatExpr, leProof, boundRat, cfgExpr]
 
           -- Try direct apply first
           setGoals [goal]
@@ -731,7 +756,10 @@ where
             -- Apply failed, use convert
             setGoals [goal]
             let intervalRat ← mkAppM ``IntervalRat.mk #[loRatExpr, hiRatExpr, leProof]
-            let checkExpr ← mkAppM ``LeanBound.Numerics.Certificate.checkLowerBound #[ast, intervalRat, boundRat, cfgExpr]
+            let checkExpr ← if useWithInv then
+              mkAppM ``LeanBound.Numerics.Certificate.checkLowerBoundWithInv #[ast, intervalRat, boundRat]
+            else
+              mkAppM ``LeanBound.Numerics.Certificate.checkLowerBound #[ast, intervalRat, boundRat, cfgExpr]
 
             -- Build proof using native_decide via an auxiliary goal
             let certTy ← mkAppM ``Eq #[checkExpr, mkConst ``Bool.true]
@@ -777,8 +805,11 @@ where
               logWarning m!"interval_bound: Could not close side goal: {← g.getType}"
 
         | none =>
-          -- Direct IntervalRat goal - use verify_lower_bound which accepts ExprSupportedCore
-          let proof ← mkAppM ``verify_lower_bound #[ast, supportProof, intervalInfo.intervalRat, boundRat, cfgExpr]
+          -- Direct IntervalRat goal - use appropriate verify_lower_bound theorem
+          let proof ← if useWithInv then
+            mkAppM ``verify_lower_bound_withInv #[ast, supportProof, intervalInfo.intervalRat, boundRat]
+          else
+            mkAppM ``verify_lower_bound #[ast, supportProof, intervalInfo.intervalRat, boundRat, cfgExpr]
           let newGoals ← goal.apply proof
           setGoals newGoals
           for g in newGoals do
@@ -791,14 +822,18 @@ where
     goal.withContext do
       let ast ← getAst func
       let boundRat ← extractRatBound bound
-      let supportProof ← mkSupportedCoreProof ast
+      let (supportProof, useWithInv) ← getSupportProof ast
       let cfgExpr ← mkAppM ``EvalConfig.mk #[toExpr taylorDepth]
 
       -- Handle based on interval source
       match intervalInfo.fromSetIcc with
         | some (_lo, _hi, loRatExpr, hiRatExpr, leProof, _origLo, _origHi) =>
-          -- For Set.Icc goals, use the Core version which accepts ExprSupportedCore
-          let proof ← mkAppM ``verify_strict_upper_bound_Icc_core #[ast, supportProof, loRatExpr, hiRatExpr, leProof, boundRat, cfgExpr]
+          -- Choose theorem and arguments based on support type
+          -- Note: WithInv theorems don't take a cfg parameter
+          let proof ← if useWithInv then
+            mkAppM ``verify_strict_upper_bound_Icc_withInv #[ast, supportProof, loRatExpr, hiRatExpr, leProof, boundRat]
+          else
+            mkAppM ``verify_strict_upper_bound_Icc_core #[ast, supportProof, loRatExpr, hiRatExpr, leProof, boundRat, cfgExpr]
 
           -- Try direct apply first
           setGoals [goal]
@@ -812,7 +847,10 @@ where
             -- Apply failed, use convert
             setGoals [goal]
             let intervalRat ← mkAppM ``IntervalRat.mk #[loRatExpr, hiRatExpr, leProof]
-            let checkExpr ← mkAppM ``LeanBound.Numerics.Certificate.checkStrictUpperBound #[ast, intervalRat, boundRat, cfgExpr]
+            let checkExpr ← if useWithInv then
+              mkAppM ``LeanBound.Numerics.Certificate.checkStrictUpperBoundWithInv #[ast, intervalRat, boundRat]
+            else
+              mkAppM ``LeanBound.Numerics.Certificate.checkStrictUpperBound #[ast, intervalRat, boundRat, cfgExpr]
 
             -- Build proof using native_decide via an auxiliary goal
             let certTy ← mkAppM ``Eq #[checkExpr, mkConst ``Bool.true]
@@ -858,8 +896,11 @@ where
               logWarning m!"interval_bound: Could not close side goal: {← g.getType}"
 
         | none =>
-          -- Direct IntervalRat goal
-          let proof ← mkAppM ``verify_strict_upper_bound #[ast, supportProof, intervalInfo.intervalRat, boundRat, cfgExpr]
+          -- Direct IntervalRat goal - use appropriate theorem
+          let proof ← if useWithInv then
+            mkAppM ``verify_strict_upper_bound_withInv #[ast, supportProof, intervalInfo.intervalRat, boundRat]
+          else
+            mkAppM ``verify_strict_upper_bound #[ast, supportProof, intervalInfo.intervalRat, boundRat, cfgExpr]
           let newGoals ← goal.apply proof
           setGoals newGoals
           for g in newGoals do
@@ -878,14 +919,18 @@ where
     goal.withContext do
       let ast ← getAst func
       let boundRat ← extractRatBound bound
-      let supportProof ← mkSupportedCoreProof ast
+      let (supportProof, useWithInv) ← getSupportProof ast
       let cfgExpr ← mkAppM ``EvalConfig.mk #[toExpr taylorDepth]
 
       -- Handle based on interval source
       match intervalInfo.fromSetIcc with
         | some (_lo, _hi, loRatExpr, hiRatExpr, leProof, _origLo, _origHi) =>
-          -- For Set.Icc goals, use the Core version which accepts ExprSupportedCore
-          let proof ← mkAppM ``verify_strict_lower_bound_Icc_core #[ast, supportProof, loRatExpr, hiRatExpr, leProof, boundRat, cfgExpr]
+          -- Choose theorem and arguments based on support type
+          -- Note: WithInv theorems don't take a cfg parameter
+          let proof ← if useWithInv then
+            mkAppM ``verify_strict_lower_bound_Icc_withInv #[ast, supportProof, loRatExpr, hiRatExpr, leProof, boundRat]
+          else
+            mkAppM ``verify_strict_lower_bound_Icc_core #[ast, supportProof, loRatExpr, hiRatExpr, leProof, boundRat, cfgExpr]
 
           -- Try direct apply first
           setGoals [goal]
@@ -899,7 +944,10 @@ where
             -- Apply failed, use convert
             setGoals [goal]
             let intervalRat ← mkAppM ``IntervalRat.mk #[loRatExpr, hiRatExpr, leProof]
-            let checkExpr ← mkAppM ``LeanBound.Numerics.Certificate.checkStrictLowerBound #[ast, intervalRat, boundRat, cfgExpr]
+            let checkExpr ← if useWithInv then
+              mkAppM ``LeanBound.Numerics.Certificate.checkStrictLowerBoundWithInv #[ast, intervalRat, boundRat]
+            else
+              mkAppM ``LeanBound.Numerics.Certificate.checkStrictLowerBound #[ast, intervalRat, boundRat, cfgExpr]
 
             -- Build proof using native_decide via an auxiliary goal
             let certTy ← mkAppM ``Eq #[checkExpr, mkConst ``Bool.true]
@@ -945,8 +993,11 @@ where
               logWarning m!"interval_bound: Could not close side goal: {← g.getType}"
 
         | none =>
-          -- Direct IntervalRat goal
-          let proof ← mkAppM ``verify_strict_lower_bound #[ast, supportProof, intervalInfo.intervalRat, boundRat, cfgExpr]
+          -- Direct IntervalRat goal - use appropriate theorem
+          let proof ← if useWithInv then
+            mkAppM ``verify_strict_lower_bound_withInv #[ast, supportProof, intervalInfo.intervalRat, boundRat]
+          else
+            mkAppM ``verify_strict_lower_bound #[ast, supportProof, intervalInfo.intervalRat, boundRat, cfgExpr]
           let newGoals ← goal.apply proof
           setGoals newGoals
           for g in newGoals do
