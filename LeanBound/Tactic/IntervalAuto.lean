@@ -367,6 +367,108 @@ where
             }
     return none
 
+/-! ## Diagnostic Helpers for Shadow Computation -/
+
+/-- Extract interval bounds (lo, hi) from IntervalInfo for diagnostics -/
+private def extractIntervalBoundsForDiag (info : IntervalInfo) : TacticM (ℚ × ℚ) := do
+  match info.fromSetIcc with
+  | some (lo, hi, _, _, _, _, _) => return (lo, hi)
+  | none =>
+    throwError "Cannot extract bounds from non-Icc interval for diagnostics"
+
+/-- Reify a function expression to actual AST value for diagnostics -/
+private def reifyFuncForDiag (func : Lean.Expr) : TacticM LeanBound.Core.Expr := do
+  lambdaTelescope func fun _vars body => do
+    let fn := body.getAppFn
+    if fn.isConstOf ``LeanBound.Core.Expr.eval then
+      let args := body.getAppArgs
+      if args.size ≥ 2 then
+        let astExpr := args[1]!
+        let astVal ← unsafe evalExpr LeanBound.Core.Expr (mkConst ``LeanBound.Core.Expr) astExpr
+        return astVal
+      else
+        throwError "Unexpected Expr.eval structure in diagnostic"
+    else
+      let astExpr ← reify func
+      let astVal ← unsafe evalExpr LeanBound.Core.Expr (mkConst ``LeanBound.Core.Expr) astExpr
+      return astVal
+
+/-- Run shadow computation to diagnose why a proof failed -/
+def runShadowDiagnostic (boundGoal : Option BoundGoal) (_goalType : Lean.Expr) : TacticM MessageData := do
+  let some bg := boundGoal | return m!"(Could not parse goal for diagnostics)"
+
+  match bg with
+  | .forallLe _ interval func bound
+  | .forallGe _ interval func bound
+  | .forallLt _ interval func bound
+  | .forallGt _ interval func bound =>
+    try
+      -- Extract interval bounds
+      let (lo, hi) ← extractIntervalBoundsForDiag interval
+      let I : IntervalRat :=
+        if hle : lo ≤ hi then ⟨lo, hi, hle⟩
+        else ⟨0, 1, by native_decide⟩
+
+      -- Reify function to actual AST value
+      let ast ← reifyFuncForDiag func
+
+      -- Evaluate with high precision
+      let diagCfg : EvalConfig := { taylorDepth := 30 }
+      let result := evalIntervalCore1 ast I diagCfg
+
+      -- Extract bound as rational
+      let limitOpt ← extractRatFromReal bound
+
+      -- Format diagnostic based on goal type
+      let isUpperBound := match bg with
+        | .forallLe .. | .forallLt .. => true
+        | .forallGe .. | .forallGt .. => false
+
+      match limitOpt with
+      | some limit =>
+        if isUpperBound then
+          -- For f(x) ≤ c, check if computed lower bound exceeds limit
+          if result.lo > limit then
+            return m!"❌ Diagnostic Analysis:\n\
+                      Goal: f(x) ≤ {limit}\n\
+                      Computed Range (depth 30): [{result.lo}, {result.hi}]\n\n\
+                      • Mathematical Violation: Lower bound {result.lo} > limit {limit}.\n\
+                      • The theorem is likely FALSE."
+          else if result.hi > limit then
+            return m!"⚠️ Diagnostic Analysis:\n\
+                      Goal: f(x) ≤ {limit}\n\
+                      Computed Range (depth 30): [{result.lo}, {result.hi}]\n\n\
+                      • Precision Issue: Upper bound {result.hi} > limit {limit}.\n\
+                      • Try: interval_bound 50 or subdivide the domain."
+          else
+            return m!"Diagnostic Analysis:\n\
+                      Computed Range: [{result.lo}, {result.hi}] ≤ {limit}\n\
+                      The proof failed for technical reasons (side goal closure, etc.)."
+        else
+          -- For c ≤ f(x), check if computed upper bound is below limit
+          if result.hi < limit then
+            return m!"❌ Diagnostic Analysis:\n\
+                      Goal: {limit} ≤ f(x)\n\
+                      Computed Range (depth 30): [{result.lo}, {result.hi}]\n\n\
+                      • Mathematical Violation: Upper bound {result.hi} < limit {limit}.\n\
+                      • The theorem is likely FALSE."
+          else if result.lo < limit then
+            return m!"⚠️ Diagnostic Analysis:\n\
+                      Goal: {limit} ≤ f(x)\n\
+                      Computed Range (depth 30): [{result.lo}, {result.hi}]\n\n\
+                      • Precision Issue: Lower bound {result.lo} < limit {limit}.\n\
+                      • Try: interval_bound 50 or subdivide the domain."
+          else
+            return m!"Diagnostic Analysis:\n\
+                      Computed Range: [{result.lo}, {result.hi}] ≥ {limit}\n\
+                      The proof failed for technical reasons (side goal closure, etc.)."
+      | none =>
+        return m!"Diagnostic Analysis:\n\
+                  Computed Range (depth 30): [{result.lo}, {result.hi}]\n\
+                  (Could not extract rational from bound for comparison)"
+    catch e =>
+      return m!"(Diagnostic computation failed: {e.toMessageData})"
+
 /-! ## Main Tactic Implementation -/
 
 /-- The main interval_bound tactic implementation -/
@@ -473,7 +575,13 @@ where
               else
                 throwError "Unexpected reduced coercion structure"
             else
-              throwError "Cannot extract rational from bound: {bound} (type: {boundTy})"
+              throwError m!"Cannot extract rational from bound: {bound}\n\
+                            Type: {boundTy}\n\n\
+                            This happens when the bound contains non-computable constants\n\
+                            (e.g., Real.pi, Real.sqrt 2, or complex expressions).\n\
+                            Suggestions:\n\
+                            • Use a rational approximation (e.g., 3.15 instead of Real.pi)\n\
+                            • Use interval_decide for point inequalities with transcendentals"
 
   /-- Try to extract AST from an Expr.eval application, or reify if it's a raw expression -/
   getAst (func : Lean.Expr) : TacticM Lean.Expr := do
@@ -489,7 +597,9 @@ where
         if args.size ≥ 2 then
           return args[1]!
         else
-          throwError "Unexpected Expr.eval application structure"
+          throwError m!"Unexpected Expr.eval application structure.\n\
+                        Expected: Expr.eval env ast\n\
+                        Got {args.size} arguments: {args.toList}"
       else
         -- It's a raw expression - reify it
         reify func
@@ -886,10 +996,490 @@ elab "interval_bound" depth:(num)? : tactic => do
       catch e =>
         lastError := some e
         continue
-    -- All depths failed, report the last error
+    -- All depths failed - run diagnostics and report enriched error
     match lastError with
-    | some e => throw e
+    | some e =>
+      -- Restore state and try to parse goal for diagnostics
+      restoreState goalState
+      let diagMsg ← try
+        -- Apply same preprocessing as intervalBoundCore for consistent parsing
+        try
+          evalTactic (← `(tactic| intro _x _hx; simp only [ge_iff_le, gt_iff_lt]; revert _x _hx))
+        catch _ =>
+          try evalTactic (← `(tactic| simp only [ge_iff_le, gt_iff_lt]))
+          catch _ => pure ()
+        try
+          evalTactic (← `(tactic| simp only [sq, pow_two, pow_succ, pow_zero, pow_one, one_mul, mul_one] at *))
+        catch _ => pure ()
+
+        let goal ← getMainGoal
+        let goalType ← goal.getType
+        let boundGoalOpt ← parseBoundGoal goalType
+        runShadowDiagnostic boundGoalOpt goalType
+      catch _ =>
+        pure m!"(Could not run diagnostics)"
+
+      throwError m!"{e.toMessageData}\n\n{diagMsg}"
     | none => throwError "interval_bound: All precision levels failed"
+
+/-! ## Multivariate Bounds Tactic
+
+The `multivariate_bound` tactic handles goals with multiple quantified variables:
+- `∀ x ∈ I, ∀ y ∈ J, f(x, y) ≤ c`
+- `∀ x ∈ I, ∀ y ∈ J, c ≤ f(x, y)`
+
+This uses the global optimization theorems (verify_global_upper_bound/verify_global_lower_bound)
+from Certificate.lean, which operate over Box (List IntervalRat) domains.
+-/
+
+open LeanBound.Numerics.Optimization in
+/-- Information about a quantified variable and its interval -/
+structure VarIntervalInfo where
+  /-- Variable name -/
+  varName : Name
+  /-- Variable type -/
+  varType : Lean.Expr
+  /-- Extracted interval (lo, hi rationals and their expressions) -/
+  intervalRat : Lean.Expr
+  /-- Original lower bound expression for Set.Icc -/
+  loExpr : Lean.Expr
+  /-- Original upper bound expression for Set.Icc -/
+  hiExpr : Lean.Expr
+  /-- Low bound as rational -/
+  lo : ℚ
+  /-- High bound as rational -/
+  hi : ℚ
+  deriving Repr, Inhabited
+
+open LeanBound.Numerics.Optimization in
+/-- Result of analyzing a multivariate bound goal -/
+inductive MultivariateBoundGoal where
+  /-- ∀ x₁ ∈ I₁, ..., ∀ xₙ ∈ Iₙ, f(x₁,...,xₙ) ≤ c -/
+  | forallLe (vars : Array VarIntervalInfo) (func : Lean.Expr) (bound : Lean.Expr)
+  /-- ∀ x₁ ∈ I₁, ..., ∀ xₙ ∈ Iₙ, c ≤ f(x₁,...,xₙ) -/
+  | forallGe (vars : Array VarIntervalInfo) (func : Lean.Expr) (bound : Lean.Expr)
+  deriving Repr
+
+/-- Try to extract interval info from a Set.Icc membership type -/
+private def extractIntervalFromSetIcc (memTy : Lean.Expr) (x : Lean.Expr) : MetaM (Option VarIntervalInfo) := do
+  -- memTy should be x ∈ Set.Icc lo hi
+  match_expr memTy with
+  | Membership.mem _ _ _ interval xExpr =>
+    if ← isDefEq xExpr x then
+      let fn := interval.getAppFn
+      let args := interval.getAppArgs
+      if fn.isConstOf ``Set.Icc then
+        if args.size >= 4 then
+          let loExpr := args[2]!
+          let hiExpr := args[3]!
+          if let some lo ← extractRatFromReal loExpr then
+            if let some hi ← extractRatFromReal hiExpr then
+              let loRatExpr := toExpr lo
+              let hiRatExpr := toExpr hi
+              -- Build proof that lo ≤ hi
+              let leProofTy ← mkAppM ``LE.le #[loRatExpr, hiRatExpr]
+              let leProof ← mkDecideProof leProofTy
+              let intervalRat ← mkAppM ``IntervalRat.mk #[loRatExpr, hiRatExpr, leProof]
+              let xTy ← inferType x
+              let varName ← do
+                match x with
+                | .fvar fv => pure (← fv.getDecl).userName
+                | _ => pure `x
+              return some {
+                varName := varName
+                varType := xTy
+                intervalRat := intervalRat
+                loExpr := loExpr
+                hiExpr := hiExpr
+                lo := lo
+                hi := hi
+              }
+      return none
+    else return none
+  | _ => return none
+
+/-- Try to extract interval info from an IntervalRat membership type -/
+private def extractIntervalFromIntervalRat (memTy : Lean.Expr) (x : Lean.Expr) : MetaM (Option VarIntervalInfo) := do
+  match_expr memTy with
+  | Membership.mem _ _ _ interval xExpr =>
+    if ← isDefEq xExpr x then
+      let intervalTy ← inferType interval
+      if intervalTy.isConstOf ``IntervalRat then
+        -- Try to extract lo and hi from the IntervalRat structure
+        -- For now, we'll assume the interval is already in the right form
+        let xTy ← inferType x
+        let varName ← do
+          match x with
+          | .fvar fv => pure (← fv.getDecl).userName
+          | _ => pure `x
+        let loExpr ← mkAppM ``IntervalRat.lo #[interval]
+        let hiExpr ← mkAppM ``IntervalRat.hi #[interval]
+        return some {
+          varName := varName
+          varType := xTy
+          intervalRat := interval
+          loExpr := loExpr
+          hiExpr := hiExpr
+          lo := 0  -- Placeholder - we don't need these for non-Set.Icc
+          hi := 1  -- Placeholder
+        }
+      return none
+    else return none
+  | _ => return none
+
+/-- Recursively parse a multivariate bound goal, collecting variables and intervals.
+    This processes all quantifiers within nested withLocalDeclD scopes so that
+    fvars remain valid for mkLambdaFVars. -/
+partial def parseMultivariateBoundGoal (goal : Lean.Expr) : MetaM (Option MultivariateBoundGoal) := do
+  -- We need to work within the withLocalDeclD scopes, so we'll return a function that
+  -- builds the result while fvars are still valid.
+  let rec collect (e : Lean.Expr) (acc : Array VarIntervalInfo) (fvars : Array Lean.Expr) :
+      MetaM (Option MultivariateBoundGoal) := do
+    -- Don't use whnf at the top level - it might destroy the forall structure
+    if !e.isForall then
+      -- We've reached the inner body - process the comparison
+      if acc.isEmpty then
+        return none  -- No quantified variables found
+
+      -- Match the comparison
+      match_expr e with
+      | LE.le _ _ lhs rhs =>
+        -- Build the function as a lambda over all bound variables
+        let lhsHasVars := fvars.any (fun fv => lhs.containsFVar fv.fvarId!)
+        let rhsHasVars := fvars.any (fun fv => rhs.containsFVar fv.fvarId!)
+        if lhsHasVars && !rhsHasVars then
+          let func ← mkLambdaFVars fvars lhs
+          return some (.forallLe acc func rhs)
+        else if rhsHasVars && !lhsHasVars then
+          let func ← mkLambdaFVars fvars rhs
+          return some (.forallGe acc func lhs)
+        else
+          return none
+      | GE.ge _ _ lhs rhs =>
+        let lhsHasVars := fvars.any (fun fv => lhs.containsFVar fv.fvarId!)
+        let rhsHasVars := fvars.any (fun fv => rhs.containsFVar fv.fvarId!)
+        if lhsHasVars && !rhsHasVars then
+          let func ← mkLambdaFVars fvars lhs
+          return some (.forallGe acc func rhs)
+        else if rhsHasVars && !lhsHasVars then
+          let func ← mkLambdaFVars fvars rhs
+          return some (.forallLe acc func lhs)
+        else
+          return none
+      | _ => return none
+
+    let .forallE name ty body _ := e | return none
+
+    -- Introduce the variable (stay in this scope for the rest of parsing)
+    withLocalDeclD name ty fun x => do
+      let body := body.instantiate1 x
+
+      -- Check if this is a membership quantifier (x ∈ I → ...)
+      if body.isForall then
+        let .forallE _ memTy innerBody _ := body | return none
+
+        -- Try to extract interval from membership (don't whnf memTy)
+        let intervalInfo? ← (do
+          if let some info ← extractIntervalFromSetIcc memTy x then
+            pure (some info)
+          else
+            extractIntervalFromIntervalRat memTy x : MetaM (Option VarIntervalInfo))
+
+        match intervalInfo? with
+        | some info =>
+          -- It's a membership quantifier, continue collecting within this scope
+          withLocalDeclD `_ memTy fun _hx => do
+            let nextBody := innerBody.instantiate1 _hx
+            collect nextBody (acc.push info) (fvars.push x)
+        | none =>
+          -- Not a membership quantifier, treat as the inner body
+          -- Process comparison within current scope
+          if acc.isEmpty then
+            return none
+          match_expr body with
+          | LE.le _ _ lhs rhs =>
+            let lhsHasVars := fvars.any (fun fv => lhs.containsFVar fv.fvarId!)
+            let rhsHasVars := fvars.any (fun fv => rhs.containsFVar fv.fvarId!)
+            if lhsHasVars && !rhsHasVars then
+              let func ← mkLambdaFVars fvars lhs
+              return some (.forallLe acc func rhs)
+            else if rhsHasVars && !lhsHasVars then
+              let func ← mkLambdaFVars fvars rhs
+              return some (.forallGe acc func lhs)
+            else
+              return none
+          | GE.ge _ _ lhs rhs =>
+            let lhsHasVars := fvars.any (fun fv => lhs.containsFVar fv.fvarId!)
+            let rhsHasVars := fvars.any (fun fv => rhs.containsFVar fv.fvarId!)
+            if lhsHasVars && !rhsHasVars then
+              let func ← mkLambdaFVars fvars lhs
+              return some (.forallGe acc func rhs)
+            else if rhsHasVars && !lhsHasVars then
+              let func ← mkLambdaFVars fvars rhs
+              return some (.forallLe acc func lhs)
+            else
+              return none
+          | _ => return none
+      else
+        -- No more foralls - process comparison within current scope
+        if acc.isEmpty then
+          return none
+        match_expr body with
+        | LE.le _ _ lhs rhs =>
+          let lhsHasVars := fvars.any (fun fv => lhs.containsFVar fv.fvarId!)
+          let rhsHasVars := fvars.any (fun fv => rhs.containsFVar fv.fvarId!)
+          if lhsHasVars && !rhsHasVars then
+            let func ← mkLambdaFVars fvars lhs
+            return some (.forallLe acc func rhs)
+          else if rhsHasVars && !lhsHasVars then
+            let func ← mkLambdaFVars fvars rhs
+            return some (.forallGe acc func lhs)
+          else
+            return none
+        | GE.ge _ _ lhs rhs =>
+          let lhsHasVars := fvars.any (fun fv => lhs.containsFVar fv.fvarId!)
+          let rhsHasVars := fvars.any (fun fv => rhs.containsFVar fv.fvarId!)
+          if lhsHasVars && !rhsHasVars then
+            let func ← mkLambdaFVars fvars lhs
+            return some (.forallGe acc func rhs)
+          else if rhsHasVars && !lhsHasVars then
+            let func ← mkLambdaFVars fvars rhs
+            return some (.forallLe acc func lhs)
+          else
+            return none
+        | _ => return none
+
+  collect goal #[] #[]
+
+/-- Build a Box expression (List IntervalRat) from an array of VarIntervalInfo -/
+def mkBoxExpr (infos : Array VarIntervalInfo) : MetaM Lean.Expr := do
+  let intervalRatType := Lean.mkConst ``IntervalRat
+  let intervals := infos.map (·.intervalRat)
+  mkListLit intervalRatType intervals.toList
+
+open LeanBound.Numerics.Optimization in
+open LeanBound.Numerics.Certificate.GlobalOpt in
+/-- The main multivariate_bound tactic implementation -/
+def multivariateBoundCore (maxIters : Nat) (tolerance : ℚ) (useMonotonicity : Bool) (taylorDepth : Nat) : TacticM Unit := do
+  let goal ← getMainGoal
+  let goalType ← goal.getType
+
+  -- Parse the multivariate goal
+  let some boundGoal ← parseMultivariateBoundGoal goalType
+    | throwError "multivariate_bound: Could not parse goal as multivariate bound. Expected:\n\
+                  • ∀ x ∈ I, ∀ y ∈ J, ... f(x,y,...) ≤ c\n\
+                  • ∀ x ∈ I, ∀ y ∈ J, ... c ≤ f(x,y,...)"
+
+  match boundGoal with
+  | .forallLe vars func bound =>
+    proveMultivariateLe goal vars func bound maxIters tolerance useMonotonicity taylorDepth
+  | .forallGe vars func bound =>
+    proveMultivariateGe goal vars func bound maxIters tolerance useMonotonicity taylorDepth
+
+where
+  /-- Extract rational bound from possible coercion (reusing logic from intervalBoundCore) -/
+  extractRatBound (bound : Lean.Expr) : TacticM Lean.Expr := do
+    let fn := bound.getAppFn
+    let args := bound.getAppArgs
+
+    -- Check for Rat.cast (which is what ↑ becomes for ℚ → ℝ)
+    if fn.isConstOf ``Rat.cast then
+      if args.size > 0 then
+        return args.back!
+      else
+        throwError "Unexpected Rat.cast structure"
+    else if fn.isConstOf ``RatCast.ratCast then
+      if args.size > 0 then
+        return args.back!
+      else
+        throwError "Unexpected RatCast.ratCast structure"
+    else
+      let boundTy ← inferType bound
+      if boundTy.isConstOf ``Rat then
+        return bound
+      else
+        if let some q ← extractRatFromReal bound then
+          return toExpr q
+        else
+          let boundReduced ← whnf bound
+          let fnReduced := boundReduced.getAppFn
+          if fnReduced.isConstOf ``Rat.cast || fnReduced.isConstOf ``RatCast.ratCast then
+            let argsReduced := boundReduced.getAppArgs
+            if argsReduced.size > 0 then
+              return argsReduced.back!
+          throwError m!"Cannot extract rational from bound: {bound}\n\n\
+                        This happens when the bound contains non-computable constants.\n\
+                        Suggestions:\n\
+                        • Use a rational approximation\n\
+                        • Use interval_decide for point inequalities with transcendentals"
+
+  /-- Prove ∀ x₁ ∈ I₁, ..., ∀ xₙ ∈ Iₙ, f(x) ≤ c using verify_global_upper_bound -/
+  proveMultivariateLe (goal : MVarId) (vars : Array VarIntervalInfo) (func bound : Lean.Expr)
+      (maxIters : Nat) (tolerance : ℚ) (useMonotonicity : Bool) (taylorDepth : Nat) : TacticM Unit := do
+    goal.withContext do
+      -- 1. Build Box expression
+      let boxExpr ← mkBoxExpr vars
+
+      -- 2. Reify the function to AST
+      let ast ← reify func
+
+      -- 3. Extract rational bound
+      let boundRat ← extractRatBound bound
+
+      -- 4. Generate support proof
+      let supportProof ← mkSupportedCoreProof ast
+
+      -- 5. Build config expression
+      let cfgExpr ← mkAppM ``GlobalOptConfig.mk #[toExpr maxIters, toExpr tolerance, toExpr useMonotonicity, toExpr taylorDepth]
+
+      -- 6. Apply verify_global_upper_bound theorem
+      -- The theorem has signature:
+      -- verify_global_upper_bound (e : Expr) (hsupp : ExprSupportedCore e) (B : Box) (c : ℚ) (cfg : GlobalOptConfig)
+      --   (h_cert : checkGlobalUpperBound e B c cfg = true) :
+      --   ∀ (ρ : Nat → ℝ), Box.envMem ρ B → (∀ i, i ≥ B.length → ρ i = 0) → Expr.eval ρ e ≤ c
+      let proof ← mkAppM ``verify_global_upper_bound #[ast, supportProof, boxExpr, boundRat, cfgExpr]
+
+      -- 7. We need to prove the certificate check (checkGlobalUpperBound e B c cfg = true)
+      -- Then apply the result to close the goal
+
+      -- The goal after applying the theorem will need:
+      -- - h_cert: checkGlobalUpperBound e B c cfg = true  (provable by native_decide)
+      -- Then we need to "intro" the quantifiers and convert Set.Icc membership to Box.envMem
+
+      -- For now, we'll use a direct approach: intro all vars and hypotheses, then apply the theorem
+      setGoals [goal]
+
+      -- Intro all the quantified variables and membership hypotheses
+      let mut introNames : Array Lean.Name := #[]
+      for i in [:vars.size] do
+        introNames := introNames.push (vars[i]!.varName)
+        introNames := introNames.push (Name.mkSimple s!"h{i}")
+
+      -- Use intro tactic for all vars
+      try
+        for nm in introNames do
+          let ident := Lean.mkIdent nm
+          evalTactic (← `(tactic| intro $ident:ident))
+      catch _ => pure ()
+
+      -- Now build the environment function and proofs
+      -- We need to prove Box.envMem ρ B and ∀ i ≥ B.length, ρ i = 0
+      -- where ρ i = x_i for i < n and ρ i = 0 for i ≥ n
+
+      -- Build the final proof using convert
+      let checkExpr ← mkAppM ``checkGlobalUpperBound #[ast, boxExpr, boundRat, cfgExpr]
+      let certTy ← mkAppM ``Eq #[checkExpr, Lean.mkConst ``Bool.true]
+      let certGoal ← mkFreshExprMVar certTy
+      let certGoalId := certGoal.mvarId!
+      setGoals [certGoalId]
+      try
+        evalTactic (← `(tactic| native_decide))
+      catch e =>
+        throwError "multivariate_bound: Certificate check failed. The bound may be too tight.\n{e.toMessageData}"
+
+      let conclusionProof ← mkAppM' proof #[certGoal]
+
+      -- Now we need to apply this to our current context
+      -- The proof gives us: ∀ ρ, Box.envMem ρ B → (∀ i ≥ B.length, ρ i = 0) → Expr.eval ρ e ≤ c
+      -- We have variables x₀, x₁, ... and membership proofs h0, h1, ...
+      -- We need to construct ρ = fun i => if i = 0 then x₀ else if i = 1 then x₁ else ... else 0
+
+      -- For now, use convert to close the goal
+      let conclusionTerm ← Lean.Elab.Term.exprToSyntax conclusionProof
+      let mainGoal ← getMainGoal
+      setGoals [mainGoal]
+      evalTactic (← `(tactic| refine ?_))
+
+      -- Build the environment function
+      let goals ← getGoals
+      for g in goals do
+        setGoals [g]
+        try
+          -- Try various approaches to close remaining goals
+          evalTactic (← `(tactic| exact $conclusionTerm _ (by simp [Box.envMem]; intro ⟨i, hi⟩; fin_cases i <;> assumption) (by intro i hi; simp at hi; omega)))
+        catch _ =>
+          try
+            evalTactic (← `(tactic| native_decide))
+          catch _ =>
+            try
+              evalTactic (← `(tactic| simp [Box.envMem, *]))
+            catch _ =>
+              logWarning m!"multivariate_bound: Could not close subgoal: {← g.getType}"
+
+  /-- Prove ∀ x₁ ∈ I₁, ..., ∀ xₙ ∈ Iₙ, c ≤ f(x) using verify_global_lower_bound -/
+  proveMultivariateGe (goal : MVarId) (vars : Array VarIntervalInfo) (func bound : Lean.Expr)
+      (maxIters : Nat) (tolerance : ℚ) (useMonotonicity : Bool) (taylorDepth : Nat) : TacticM Unit := do
+    goal.withContext do
+      -- Similar to proveMultivariateLe but with verify_global_lower_bound
+      let boxExpr ← mkBoxExpr vars
+      let ast ← reify func
+      let boundRat ← extractRatBound bound
+      let supportProof ← mkSupportedCoreProof ast
+      let cfgExpr ← mkAppM ``GlobalOptConfig.mk #[toExpr maxIters, toExpr tolerance, toExpr useMonotonicity, toExpr taylorDepth]
+
+      let proof ← mkAppM ``verify_global_lower_bound #[ast, supportProof, boxExpr, boundRat, cfgExpr]
+
+      setGoals [goal]
+
+      -- Intro all the quantified variables and membership hypotheses
+      let mut introNames : Array Lean.Name := #[]
+      for i in [:vars.size] do
+        introNames := introNames.push (vars[i]!.varName)
+        introNames := introNames.push (Name.mkSimple s!"h{i}")
+
+      try
+        for nm in introNames do
+          let ident := Lean.mkIdent nm
+          evalTactic (← `(tactic| intro $ident:ident))
+      catch _ => pure ()
+
+      let checkExpr ← mkAppM ``checkGlobalLowerBound #[ast, boxExpr, boundRat, cfgExpr]
+      let certTy ← mkAppM ``Eq #[checkExpr, Lean.mkConst ``Bool.true]
+      let certGoal ← mkFreshExprMVar certTy
+      let certGoalId := certGoal.mvarId!
+      setGoals [certGoalId]
+      try
+        evalTactic (← `(tactic| native_decide))
+      catch e =>
+        throwError "multivariate_bound: Certificate check failed. The bound may be too tight.\n{e.toMessageData}"
+
+      let conclusionProof ← mkAppM' proof #[certGoal]
+      let conclusionTerm ← Lean.Elab.Term.exprToSyntax conclusionProof
+      let mainGoal ← getMainGoal
+      setGoals [mainGoal]
+      evalTactic (← `(tactic| refine ?_))
+
+      let goals ← getGoals
+      for g in goals do
+        setGoals [g]
+        try
+          evalTactic (← `(tactic| exact $conclusionTerm _ (by simp [Box.envMem]; intro ⟨i, hi⟩; fin_cases i <;> assumption) (by intro i hi; simp at hi; omega)))
+        catch _ =>
+          try
+            evalTactic (← `(tactic| native_decide))
+          catch _ =>
+            try
+              evalTactic (← `(tactic| simp [Box.envMem, *]))
+            catch _ =>
+              logWarning m!"multivariate_bound: Could not close subgoal: {← g.getType}"
+
+/-- The multivariate_bound tactic.
+
+    Automatically proves bounds on multivariate expressions using global optimization.
+
+    Usage:
+    - `multivariate_bound` - uses defaults (1000 iterations, tolerance 1/1000, Taylor depth 10)
+    - `multivariate_bound 2000` - uses 2000 iterations
+
+    Supports goals of the form:
+    - `∀ x ∈ I, ∀ y ∈ J, f(x,y) ≤ c`
+    - `∀ x ∈ I, ∀ y ∈ J, c ≤ f(x,y)`
+-/
+elab "multivariate_bound" iters:(num)? : tactic => do
+  let maxIters := match iters with
+    | some n => n.getNat
+    | none => 1000
+  multivariateBoundCore maxIters (1/1000) false 10
 
 /-! ## Global Optimization Tactic
 
@@ -1142,7 +1732,9 @@ where
         if args.size ≥ 2 then
           return args[1]!
         else
-          throwError "Unexpected Expr.eval application structure"
+          throwError m!"Unexpected Expr.eval application structure.\n\
+                        Expected: Expr.eval env ast\n\
+                        Got {args.size} arguments: {args.toList}"
       else
         reify func
 

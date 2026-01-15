@@ -569,6 +569,71 @@ theorem mem_mul {a b : AffineForm} {eps : NoiseAssignment} {va vb : ℝ}
     push_cast
     ring
 
+/-- Squaring is sound: if v is represented by a, then v*v is represented by sq a -/
+theorem mem_sq {a : AffineForm} {eps : NoiseAssignment} {v : ℝ}
+    (hvalid : validNoise eps)
+    (hmem : mem_affine a eps v) :
+    mem_affine (sq a) eps (v * v) := by
+  -- The sq operation is an optimized version of mul a a
+  -- The proof follows the same pattern as mem_mul but with a = b
+  obtain ⟨ea, hea, heqa⟩ := hmem
+
+  let La := linearSum a.coeffs eps
+  let Da := La + ea
+
+  -- The new error term for sq
+  let err_new := 2 * (a.c0 : ℝ) * ea + Da * Da
+
+  use err_new
+  constructor
+
+  -- Part 1: Bound |err_new| ≤ new_r
+  · simp only [sq]
+    have h1 : |2 * (a.c0 : ℝ) * ea| ≤ 2 * |(a.c0 : ℝ)| * (a.r : ℝ) := by
+      calc |2 * (a.c0 : ℝ) * ea|
+          = |2| * |(a.c0 : ℝ)| * |ea| := by rw [abs_mul, abs_mul]
+        _ = 2 * |(a.c0 : ℝ)| * |ea| := by norm_num
+        _ ≤ 2 * |(a.c0 : ℝ)| * (a.r : ℝ) := by
+            have h := abs_nonneg (a.c0 : ℝ)
+            nlinarith [hea]
+    have h2 : |Da * Da| = |Da| * |Da| := abs_mul Da Da
+
+    have hLa_bound : |La| ≤ (sumAbs a.coeffs : ℝ) := linearSum_bounded_weak a.coeffs eps hvalid
+
+    have hDa_bound : |Da| ≤ (deviationBound a : ℝ) := by
+      calc |Da| = |La + ea| := rfl
+        _ ≤ |La| + |ea| := abs_add _ _
+        _ ≤ (sumAbs a.coeffs : ℝ) + (a.r : ℝ) := by linarith
+        _ = (deviationBound a : ℝ) := by simp [deviationBound]; ring
+
+    have hDaDa : |Da * Da| ≤ (deviationBound a : ℝ) * (deviationBound a : ℝ) := by
+      rw [h2]
+      apply mul_le_mul hDa_bound hDa_bound (abs_nonneg _)
+      exact_mod_cast deviationBound_nonneg a
+
+    have hfinal : |err_new| ≤ 2 * |(a.c0 : ℝ)| * (a.r : ℝ) +
+                            (deviationBound a : ℝ) * (deviationBound a : ℝ) := by
+      calc |err_new|
+          = |2 * (a.c0 : ℝ) * ea + Da * Da| := rfl
+        _ ≤ |2 * (a.c0 : ℝ) * ea| + |Da * Da| := abs_add _ _
+        _ ≤ 2 * |(a.c0 : ℝ)| * (a.r : ℝ) + (deviationBound a : ℝ) * (deviationBound a : ℝ) := by linarith
+
+    calc |err_new|
+        ≤ 2 * |(a.c0 : ℝ)| * (a.r : ℝ) + (deviationBound a : ℝ) * (deviationBound a : ℝ) := hfinal
+      _ = ((2 * |a.c0| * a.r + deviationBound a * deviationBound a : ℚ) : ℝ) := by
+          simp only [deviationBound]; push_cast; rw [(Rat.cast_abs a.c0).symm]
+
+  -- Part 2: Show v * v = evalLinear (sq a) eps + err_new
+  · simp only [evalLinear, sq]
+    simp only [evalLinear] at heqa
+    rw [heqa]
+    -- Algebra: (ca + La + ea)^2 = ca^2 + 2*ca*(La + ea) + (La + ea)^2
+    --        = ca^2 + 2*ca*La + 2*ca*ea + (La + ea)^2
+    -- linearSum of scaled coefficients = scaled linearSum
+    simp only [linearSum_map_mul]
+    push_cast
+    ring
+
 /-- If v is represented by af, then v ∈ toInterval af -/
 theorem mem_toInterval {af : AffineForm} {eps : NoiseAssignment} {v : ℝ}
     (hvalid : validNoise eps)

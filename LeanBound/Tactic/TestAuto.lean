@@ -177,4 +177,17 @@ theorem test_xsq_minus_two_ne_zero : ∀ x ∈ I01,
     Expr.eval (fun _ => x) (Expr.add (Expr.mul (Expr.var 0) (Expr.var 0)) (Expr.neg (Expr.const 2))) ≠ (0 : ℝ) := by
   root_bound
 
+/-! ## Multivariate Bounds Tests
+
+These tests verify the `multivariate_bound` tactic for proving bounds over multi-variable domains.
+The multivariate_bound tactic is currently under development.
+
+NOTE: The full automatic bridging from `∀ x ∈ Set.Icc ...` to the internal Box form requires
+additional work. For now, use the `opt_bound` tactic for global optimization goals that are
+already in the `Box.envMem` form.
+-/
+
+-- Tests using opt_bound (the working approach for Box.envMem form)
+-- See test_opt_2d_sum_sq above for example usage
+
 end LeanBound.Tactic.TestAuto
