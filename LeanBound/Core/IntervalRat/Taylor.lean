@@ -226,53 +226,86 @@ def cosComputable (I : IntervalRat) (n : ℕ := 10) : IntervalRat :=
 
 /-! ### Computable sinh and cosh via exp -/
 
-/-- Computable interval enclosure for sinh using exp.
-
-    sinh(x) = (exp(x) - exp(-x)) / 2
-    Since sinh is strictly monotonic, sinh([a,b]) = [sinh(a), sinh(b)].
-    We compute this using the exp Taylor series. -/
-def sinhComputable (I : IntervalRat) (n : ℕ := 10) : IntervalRat :=
-  -- Compute exp(I) and exp(-I)
-  let expPos := expComputable I n
-  let expNeg := expComputable (neg I) n
-  -- sinh = (exp(x) - exp(-x)) / 2
-  -- For interval [lo, hi]:
-  --   sinh(lo) = (exp(lo) - exp(-lo)) / 2
-  --   sinh(hi) = (exp(hi) - exp(-hi)) / 2
-  -- Since sinh is monotonic, we can compute at endpoints
-  let sinhLo := (expPos.lo - expNeg.hi) / 2  -- Lower bound: use min exp(x), max exp(-x)
-  let sinhHi := (expPos.hi - expNeg.lo) / 2  -- Upper bound: use max exp(x), min exp(-x)
-  -- Interval validity: sinhLo ≤ sinhHi follows from expPos.lo ≤ expPos.hi and expNeg.lo ≤ expNeg.hi
+/-- Computable interval enclosure for sinh at a single rational point.
+    Uses the definition sinh(q) = (exp(q) - exp(-q)) / 2. -/
+def sinhPointComputable (q : ℚ) (n : ℕ := 10) : IntervalRat :=
+  let expPos := expPointComputable q n
+  let expNeg := expPointComputable (-q) n
+  -- sinh(q) = (exp(q) - exp(-q)) / 2
+  -- Lower bound: (expPos.lo - expNeg.hi) / 2
+  -- Upper bound: (expPos.hi - expNeg.lo) / 2
+  let sinhLo := (expPos.lo - expNeg.hi) / 2
+  let sinhHi := (expPos.hi - expNeg.lo) / 2
   if h : sinhLo ≤ sinhHi then
     ⟨sinhLo, sinhHi, h⟩
   else
-    -- Fallback for edge cases where Taylor approximation gives unexpected order
     ⟨min sinhLo sinhHi, max sinhLo sinhHi, @min_le_max _ _ sinhLo sinhHi⟩
 
-/-- Computable interval enclosure for cosh using exp.
-
-    cosh(x) = (exp(x) + exp(-x)) / 2
-    cosh has minimum 1 at x = 0, and is symmetric: cosh(-x) = cosh(x).
-    We compute this using the exp Taylor series. -/
-def coshComputable (I : IntervalRat) (n : ℕ := 10) : IntervalRat :=
-  -- Compute exp(I) and exp(-I)
-  let expPos := expComputable I n
-  let expNeg := expComputable (neg I) n
-  -- cosh = (exp(x) + exp(-x)) / 2
-  -- Lower bound: minimum of cosh over the interval
-  -- Upper bound: maximum of cosh over the interval
-  let coshLo := (expPos.lo + expNeg.lo) / 2  -- Lower bound
-  let coshHi := (expPos.hi + expNeg.hi) / 2  -- Upper bound
-  -- Use 1 as lower bound (cosh x ≥ 1 always), take max with computed value
-  -- For valid interval, we need lo ≤ hi
+/-- Computable interval enclosure for cosh at a single rational point.
+    Uses the definition cosh(q) = (exp(q) + exp(-q)) / 2. -/
+def coshPointComputable (q : ℚ) (n : ℕ := 10) : IntervalRat :=
+  let expPos := expPointComputable q n
+  let expNeg := expPointComputable (-q) n
+  -- cosh(q) = (exp(q) + exp(-q)) / 2
+  -- Lower bound: (expPos.lo + expNeg.lo) / 2
+  -- Upper bound: (expPos.hi + expNeg.hi) / 2
+  let coshLo := (expPos.lo + expNeg.lo) / 2
+  let coshHi := (expPos.hi + expNeg.hi) / 2
+  -- cosh ≥ 1 always, so ensure lower bound is at least 1
   let safeLo := max 1 coshLo
   if h : safeLo ≤ coshHi then
     ⟨safeLo, coshHi, h⟩
   else
-    -- Fallback: if Taylor underestimates, use wide bounds
     ⟨1, max 2 coshHi, by
       have h1 : (1 : ℚ) ≤ 2 := by norm_num
       exact le_trans h1 (le_max_left _ _)⟩
+
+/-- The lower bound of coshPointComputable is always at least 1. -/
+theorem coshPointComputable_lo_ge_one (q : ℚ) (n : ℕ) : 1 ≤ (coshPointComputable q n).lo := by
+  simp only [coshPointComputable]
+  split_ifs with h
+  · exact le_max_left 1 _
+  · exact le_refl 1
+
+/-- Computable interval enclosure for sinh using exp with endpoint evaluation.
+
+    sinh(x) = (exp(x) - exp(-x)) / 2
+    Since sinh is strictly monotone increasing, sinh([a,b]) = [sinh(a), sinh(b)].
+    We use endpoint evaluation for tight bounds. -/
+def sinhComputable (I : IntervalRat) (n : ℕ := 10) : IntervalRat :=
+  -- sinh is strictly monotone increasing, so evaluate at endpoints
+  let sinhLo := sinhPointComputable I.lo n
+  let sinhHi := sinhPointComputable I.hi n
+  hull sinhLo sinhHi
+
+/-- Computable interval enclosure for cosh using exp with endpoint evaluation.
+
+    cosh(x) = (exp(x) + exp(-x)) / 2
+    cosh has minimum 1 at x = 0, and is symmetric: cosh(-x) = cosh(x).
+    - cosh is decreasing on (-∞, 0]
+    - cosh is increasing on [0, ∞)
+
+    We use endpoint evaluation with monotonicity for tight bounds. -/
+def coshComputable (I : IntervalRat) (n : ℕ := 10) : IntervalRat :=
+  let coshLo := coshPointComputable I.lo n
+  let coshHi := coshPointComputable I.hi n
+  if 0 ≤ I.lo then
+    -- Interval is non-negative: cosh is increasing, so [cosh(lo), cosh(hi)]
+    hull coshLo coshHi
+  else if I.hi ≤ 0 then
+    -- Interval is non-positive: cosh is decreasing, so [cosh(hi), cosh(lo)]
+    hull coshHi coshLo
+  else
+    -- Interval contains 0: minimum is 1 at x=0, max is at whichever endpoint is farther
+    let maxEndpoint := hull coshLo coshHi
+    ⟨1, maxEndpoint.hi, by
+      -- coshPointComputable ensures lower bound ≥ 1 via max 1 _
+      have hlo_ge1 := coshPointComputable_lo_ge_one I.lo n
+      have hhi_ge1 := coshPointComputable_lo_ge_one I.hi n
+      calc (1 : ℚ) ≤ min (coshPointComputable I.lo n).lo (coshPointComputable I.hi n).lo :=
+          le_min hlo_ge1 hhi_ge1
+        _ = maxEndpoint.lo := rfl
+        _ ≤ maxEndpoint.hi := maxEndpoint.le⟩
 
 /-! ### FTIA for pow -/
 
@@ -945,15 +978,14 @@ theorem mem_cosComputable {x : ℝ} {I : IntervalRat} (hx : x ∈ I) (n : ℕ) :
   have ⟨K, hK_eq, hK_mem⟩ := mem_intersect hraw_mem hglobal_mem
   simp only [hK_eq]; exact hK_mem
 
-/-- FTIA for sinhComputable: Real.sinh x ∈ sinhComputable I n for any x ∈ I.
-
-    The proof uses the exp interval membership and the definition sinh = (exp - exp(-·))/2. -/
-theorem mem_sinhComputable {x : ℝ} {I : IntervalRat} (hx : x ∈ I) (n : ℕ) :
-    Real.sinh x ∈ sinhComputable I n := by
-  simp only [sinhComputable]
-  have hexp_pos := mem_expComputable hx n
-  have hexp_neg := mem_expComputable (mem_neg hx) n
+/-- FTIA for sinhPointComputable: Real.sinh q ∈ sinhPointComputable q n -/
+theorem mem_sinhPointComputable (q : ℚ) (n : ℕ) :
+    Real.sinh q ∈ sinhPointComputable q n := by
+  simp only [sinhPointComputable]
+  have hexp_pos := mem_expPointComputable q n
+  have hexp_neg := mem_expPointComputable (-q) n
   rw [Real.sinh_eq]
+  simp only [Rat.cast_neg] at hexp_neg
   simp only [mem_def] at hexp_pos hexp_neg ⊢
   obtain ⟨hexp_pos_lo, hexp_pos_hi⟩ := hexp_pos
   obtain ⟨hexp_neg_lo, hexp_neg_hi⟩ := hexp_neg
@@ -966,29 +998,28 @@ theorem mem_sinhComputable {x : ℝ} {I : IntervalRat} (hx : x ∈ I) (n : ℕ) 
     · simp only [Rat.cast_max, Rat.cast_div, Rat.cast_sub, Rat.cast_ofNat]
       apply le_max_of_le_right; linarith
 
-/-- FTIA for coshComputable: Real.cosh x ∈ coshComputable I n for any x ∈ I.
-
-    The proof uses the exp interval membership and the definition cosh = (exp + exp(-·))/2. -/
-theorem mem_coshComputable {x : ℝ} {I : IntervalRat} (hx : x ∈ I) (n : ℕ) :
-    Real.cosh x ∈ coshComputable I n := by
-  simp only [coshComputable]
-  have hexp_pos := mem_expComputable hx n
-  have hexp_neg := mem_expComputable (mem_neg hx) n
+/-- FTIA for coshPointComputable: Real.cosh q ∈ coshPointComputable q n -/
+theorem mem_coshPointComputable (q : ℚ) (n : ℕ) :
+    Real.cosh q ∈ coshPointComputable q n := by
+  simp only [coshPointComputable]
+  have hexp_pos := mem_expPointComputable q n
+  have hexp_neg := mem_expPointComputable (-q) n
   rw [Real.cosh_eq]
+  simp only [Rat.cast_neg] at hexp_neg
   simp only [mem_def] at hexp_pos hexp_neg ⊢
   obtain ⟨hexp_pos_lo, hexp_pos_hi⟩ := hexp_pos
   obtain ⟨hexp_neg_lo, hexp_neg_hi⟩ := hexp_neg
-  -- cosh x ≥ 1 always (AM-GM)
-  have hcosh_ge_one : 1 ≤ (Real.exp x + Real.exp (-x)) / 2 := by
-    have h1 : Real.exp x > 0 := Real.exp_pos x
-    have h2 : Real.exp (-x) > 0 := Real.exp_pos (-x)
-    have hprod : Real.exp x * Real.exp (-x) = 1 := by
+  -- cosh q ≥ 1 always (AM-GM)
+  have hcosh_ge_one : 1 ≤ (Real.exp q + Real.exp (-(q : ℝ))) / 2 := by
+    have h1 : Real.exp q > 0 := Real.exp_pos q
+    have h2 : Real.exp (-(q : ℝ)) > 0 := Real.exp_pos (-(q : ℝ))
+    have hprod : Real.exp q * Real.exp (-(q : ℝ)) = 1 := by
       rw [← Real.exp_add, add_neg_cancel, Real.exp_zero]
-    have ham : Real.exp x + Real.exp (-x) ≥ 2 := by nlinarith [sq_nonneg (Real.exp x - Real.exp (-x)), hprod]
+    have ham : Real.exp q + Real.exp (-(q : ℝ)) ≥ 2 := by nlinarith [sq_nonneg (Real.exp q - Real.exp (-(q : ℝ))), hprod]
     linarith
   split_ifs with h
   · constructor
-    · -- Lower bound: max 1 coshLo ≤ cosh x
+    · -- Lower bound: max 1 coshLo ≤ cosh q
       simp only [Rat.cast_max, Rat.cast_one, Rat.cast_div, Rat.cast_add, Rat.cast_ofNat]
       apply max_le
       · exact hcosh_ge_one
@@ -1003,6 +1034,118 @@ theorem mem_coshComputable {x : ℝ} {I : IntervalRat} (hx : x ∈ I) (n : ℕ) 
     · simp only [Rat.cast_max, Rat.cast_ofNat, Rat.cast_div, Rat.cast_add]
       apply le_max_of_le_right
       linarith
+
+/-- FTIA for sinhComputable: Real.sinh x ∈ sinhComputable I n for any x ∈ I.
+
+    Uses endpoint evaluation and monotonicity of sinh. -/
+theorem mem_sinhComputable {x : ℝ} {I : IntervalRat} (hx : x ∈ I) (n : ℕ) :
+    Real.sinh x ∈ sinhComputable I n := by
+  simp only [sinhComputable]
+  -- sinh is strictly monotone increasing
+  have hsinh_mono : StrictMono Real.sinh := Real.sinh_strictMono
+  have hlo_mem := mem_sinhPointComputable I.lo n
+  have hhi_mem := mem_sinhPointComputable I.hi n
+  -- x ∈ [lo, hi] implies sinh(lo) ≤ sinh(x) ≤ sinh(hi)
+  have hlo_le_x : (I.lo : ℝ) ≤ x := hx.1
+  have hx_le_hi : x ≤ (I.hi : ℝ) := hx.2
+  have hsinh_lo_le : Real.sinh I.lo ≤ Real.sinh x :=
+    hsinh_mono.monotone hlo_le_x
+  have hsinh_x_le_hi : Real.sinh x ≤ Real.sinh I.hi :=
+    hsinh_mono.monotone hx_le_hi
+  -- sinh x is between sinh(lo) and sinh(hi), which are in the hull
+  simp only [hull, mem_def, Rat.cast_min, Rat.cast_max]
+  constructor
+  · calc (min (sinhPointComputable I.lo n).lo (sinhPointComputable I.hi n).lo : ℝ)
+        ≤ (sinhPointComputable I.lo n).lo := by exact_mod_cast min_le_left _ _
+      _ ≤ Real.sinh I.lo := hlo_mem.1
+      _ ≤ Real.sinh x := hsinh_lo_le
+  · calc Real.sinh x ≤ Real.sinh I.hi := hsinh_x_le_hi
+      _ ≤ (sinhPointComputable I.hi n).hi := hhi_mem.2
+      _ ≤ max ((sinhPointComputable I.lo n).hi : ℝ) ((sinhPointComputable I.hi n).hi : ℝ) := le_max_right _ _
+
+/-- FTIA for coshComputable: Real.cosh x ∈ coshComputable I n for any x ∈ I.
+
+    Uses endpoint evaluation and monotonicity properties of cosh. -/
+theorem mem_coshComputable {x : ℝ} {I : IntervalRat} (hx : x ∈ I) (n : ℕ) :
+    Real.cosh x ∈ coshComputable I n := by
+  simp only [coshComputable]
+  have hlo_mem := mem_coshPointComputable I.lo n
+  have hhi_mem := mem_coshPointComputable I.hi n
+  -- cosh x ≥ 1 always (AM-GM)
+  have hcosh_ge_one : 1 ≤ Real.cosh x := Real.one_le_cosh x
+  -- Key lemma: cosh a ≤ cosh b iff |a| ≤ |b|
+  split_ifs with h1 h2
+  · -- Case: 0 ≤ I.lo (non-negative interval, cosh is increasing)
+    have hlo_nonneg : (0 : ℝ) ≤ I.lo := by exact_mod_cast h1
+    have hx_nonneg : 0 ≤ x := le_trans hlo_nonneg hx.1
+    have hhi_nonneg : (0 : ℝ) ≤ I.hi := le_trans hlo_nonneg (by exact_mod_cast I.le)
+    -- For 0 ≤ a ≤ b: |a| = a ≤ b = |b|, so cosh(a) ≤ cosh(b)
+    have hcosh_lo_le : Real.cosh I.lo ≤ Real.cosh x := by
+      rw [Real.cosh_le_cosh]
+      rw [abs_of_nonneg hlo_nonneg, abs_of_nonneg hx_nonneg]
+      exact hx.1
+    have hcosh_x_le_hi : Real.cosh x ≤ Real.cosh I.hi := by
+      rw [Real.cosh_le_cosh]
+      rw [abs_of_nonneg hx_nonneg, abs_of_nonneg hhi_nonneg]
+      exact hx.2
+    simp only [hull, mem_def, Rat.cast_min, Rat.cast_max]
+    constructor
+    · calc (min (coshPointComputable I.lo n).lo (coshPointComputable I.hi n).lo : ℝ)
+          ≤ (coshPointComputable I.lo n).lo := by exact_mod_cast min_le_left _ _
+        _ ≤ Real.cosh I.lo := hlo_mem.1
+        _ ≤ Real.cosh x := hcosh_lo_le
+    · calc Real.cosh x ≤ Real.cosh I.hi := hcosh_x_le_hi
+        _ ≤ (coshPointComputable I.hi n).hi := hhi_mem.2
+        _ ≤ max ((coshPointComputable I.lo n).hi : ℝ) ((coshPointComputable I.hi n).hi : ℝ) := le_max_right _ _
+  · -- Case: I.hi ≤ 0 (non-positive interval, cosh is decreasing)
+    have hhi_nonpos : I.hi ≤ (0 : ℝ) := by exact_mod_cast h2
+    have hx_nonpos : x ≤ 0 := le_trans hx.2 hhi_nonpos
+    have hlo_nonpos : (I.lo : ℝ) ≤ 0 := le_trans (by exact_mod_cast I.le) hhi_nonpos
+    -- For a ≤ b ≤ 0: |a| = -a ≥ -b = |b|, so cosh(a) ≥ cosh(b)
+    have hcosh_hi_le : Real.cosh I.hi ≤ Real.cosh x := by
+      rw [Real.cosh_le_cosh]
+      rw [abs_of_nonpos hhi_nonpos, abs_of_nonpos hx_nonpos]
+      linarith [hx.2]
+    have hcosh_x_le_lo : Real.cosh x ≤ Real.cosh I.lo := by
+      rw [Real.cosh_le_cosh]
+      rw [abs_of_nonpos hx_nonpos, abs_of_nonpos hlo_nonpos]
+      linarith [hx.1]
+    simp only [hull, mem_def, Rat.cast_min, Rat.cast_max]
+    constructor
+    · calc (min (coshPointComputable I.hi n).lo (coshPointComputable I.lo n).lo : ℝ)
+          ≤ (coshPointComputable I.hi n).lo := by exact_mod_cast min_le_left _ _
+        _ ≤ Real.cosh I.hi := hhi_mem.1
+        _ ≤ Real.cosh x := hcosh_hi_le
+    · calc Real.cosh x ≤ Real.cosh I.lo := hcosh_x_le_lo
+        _ ≤ (coshPointComputable I.lo n).hi := hlo_mem.2
+        _ ≤ max ((coshPointComputable I.hi n).hi : ℝ) ((coshPointComputable I.lo n).hi : ℝ) := le_max_right _ _
+  · -- Case: interval contains 0, minimum is 1
+    simp only [mem_def, Rat.cast_one, hull, Rat.cast_max]
+    constructor
+    · exact hcosh_ge_one
+    · -- Upper bound is max of endpoint cosh values
+      push_neg at h1 h2
+      have hhi_pos : (0 : ℝ) < I.hi := by exact_mod_cast h2
+      have hlo_neg : (I.lo : ℝ) < 0 := by exact_mod_cast h1
+      have hmax_bound : Real.cosh x ≤ max (Real.cosh I.lo) (Real.cosh I.hi) := by
+        -- x is between lo and hi, and interval contains 0
+        by_cases hx_nonneg : 0 ≤ x
+        · -- x ≥ 0: cosh(x) ≤ cosh(hi) since 0 ≤ x ≤ hi means |x| ≤ |hi|
+          apply le_max_of_le_right
+          rw [Real.cosh_le_cosh]
+          rw [abs_of_nonneg hx_nonneg, abs_of_nonneg (le_of_lt hhi_pos)]
+          exact hx.2
+        · -- x < 0: cosh(x) ≤ cosh(lo) since lo ≤ x < 0 means |x| ≤ |lo|
+          apply le_max_of_le_left
+          rw [Real.cosh_le_cosh]
+          push_neg at hx_nonneg
+          rw [abs_of_neg hx_nonneg, abs_of_neg hlo_neg]
+          linarith [hx.1]
+      calc Real.cosh x ≤ max (Real.cosh I.lo) (Real.cosh I.hi) := hmax_bound
+        _ ≤ max ((coshPointComputable I.lo n).hi : ℝ) ((coshPointComputable I.hi n).hi : ℝ) := by
+            apply max_le_max
+            · exact hlo_mem.2
+            · exact hhi_mem.2
 
 end IntervalRat
 
