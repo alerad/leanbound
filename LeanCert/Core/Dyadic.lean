@@ -298,8 +298,8 @@ private theorem int_ediv_mul_le (m : Int) (d : Int) (hd : 0 < d) :
 /-- Ceiling division property: m ≤ (m / d + 1) * d when m % d ≠ 0 -/
 private theorem int_ediv_add_one_mul_ge (m : Int) (d : Int) (hd : 0 < d) (_hrem : m % d ≠ 0) :
     m ≤ (m / d + 1) * d := by
-  -- From Int.emod_add_ediv: m % d + d * (m / d) = m
-  have h := Int.emod_add_ediv m d
+  -- From Int.emod_add_mul_ediv: m % d + d * (m / d) = m
+  have h := Int.emod_add_mul_ediv m d
   -- m % d < d since d > 0
   have hlt := Int.emod_lt_of_pos m hd
   -- d + d * (m / d) = (m / d + 1) * d
@@ -308,15 +308,15 @@ private theorem int_ediv_add_one_mul_ge (m : Int) (d : Int) (hd : 0 < d) (_hrem 
   -- m = m % d + d * (m / d) < d + d * (m / d) = (m / d + 1) * d
   have hcalc : m < (m / d + 1) * d :=
     calc m = m % d + d * (m / d) := h.symm
-      _ < d + d * (m / d) := add_lt_add_right hlt _
+      _ < d + d * (m / d) := by gcongr 1
       _ = (m / d + 1) * d := heq
   exact le_of_lt hcalc
 
 /-- Exact division: m = (m / d) * d when m % d = 0 -/
 private theorem int_ediv_mul_eq (m : Int) (d : Int) (_hd : 0 < d) (hrem : m % d = 0) :
     (m / d) * d = m := by
-  -- From Int.emod_add_ediv: m % d + d * (m / d) = m
-  have h := Int.emod_add_ediv m d
+  -- From Int.emod_add_mul_ediv: m % d + d * (m / d) = m
+  have h := Int.emod_add_mul_ediv m d
   -- Since m % d = 0, we have d * (m / d) = m
   simp only [hrem, zero_add] at h
   -- d * (m / d) = m, so (m / d) * d = m
@@ -326,8 +326,8 @@ private theorem int_ediv_mul_eq (m : Int) (d : Int) (_hd : 0 < d) (hrem : m % d 
 theorem toRat_neg (d : Dyadic) : (neg d).toRat = -(d.toRat) := by
   simp only [neg, toRat]
   split_ifs with h
-  · simp [Int.neg_mul]
-  · simp [neg_div]
+  · simp only [Int.cast_neg, Int.cast_natCast, neg_mul]
+  · simp only [Int.cast_neg, neg_div]
 
 /-! ### Arithmetic Homomorphisms -/
 
@@ -345,7 +345,7 @@ theorem toRat_eq (d : Dyadic) : d.toRat = d.mantissa * (2 : ℚ) ^ d.exponent :=
     have he : d.exponent = (d.exponent.toNat : ℤ) := (Int.toNat_of_nonneg h).symm
     rw [he, zpow_natCast, pow2Nat_eq_pow]
     -- Simplify (↑n : ℤ).toNat = n
-    simp only [Nat.cast_pow, Nat.cast_ofNat, Int.cast_mul, Int.cast_pow, Int.cast_ofNat,
+    simp only [Nat.cast_pow, Nat.cast_ofNat, Int.cast_pow, Int.cast_ofNat,
                Int.toNat_natCast]
   · -- Case: exponent < 0
     push_neg at h
@@ -495,7 +495,7 @@ theorem toRat_shiftUp_ge (d : Dyadic) (newExp : Int) :
       rw [hdiff_def, Int.toNat_of_nonneg]; omega
     have hnewExp : newExp = d.exponent + diff := by omega
     rw [toRat_eq, toRat_eq]
-    simp only [shiftRightInt, pow2Nat_eq_pow, hasLowBits, not_not] at hlowbits ⊢
+    simp only [shiftRightInt, pow2Nat_eq_pow, hasLowBits] at hlowbits ⊢
     -- Use int_ediv_mul_eq: (m/b) * b = m when m % b = 0
     have hpow_int_pos : (0 : ℤ) < (2 ^ diff : ℕ) := Int.natCast_pos.mpr (Nat.one_le_two_pow)
     have hrem : d.mantissa % (2 ^ diff : ℕ) = 0 := by
@@ -524,10 +524,8 @@ theorem toRat_shiftUp_ge (d : Dyadic) (newExp : Int) :
 
 /-- Helper: comparing integers reflects comparing rationals when scaled by positive factor -/
 private theorem int_lt_iff_rat_mul_lt (a b : ℤ) (c : ℚ) (hc : 0 < c) :
-    a < b ↔ (a : ℚ) * c < (b : ℚ) * c := by
-  constructor
-  · intro h; exact mul_lt_mul_of_pos_right (Int.cast_lt.mpr h) hc
-  · intro h; exact Int.cast_lt.mp ((mul_lt_mul_right hc).mp h)
+    a < b ↔ (a : ℚ) * c < (b : ℚ) * c :=
+    ⟨λ h ↦ mul_lt_mul_of_pos_right (Int.cast_lt.mpr h) hc, λ h ↦ Int.cast_lt.mp ((Rat.mul_lt_mul_right hc).mp h)⟩
 
 private theorem int_eq_iff_rat_mul_eq (a b : ℤ) (c : ℚ) (hc : c ≠ 0) :
     a = b ↔ (a : ℚ) * c = (b : ℚ) * c := by
@@ -557,13 +555,13 @@ private theorem ord_compare_int_lt (a b : ℤ) : Ord.compare a b = .lt ↔ a < b
     have hcases := lt_or_eq_of_le hge
     cases hcases with
     | inl hgt =>
-      simp only [Ord.compare, compare, compareOfLessAndEq, not_lt.mpr (le_of_lt hgt), ne_of_gt hgt, ↓reduceIte] at h
+      simp only [Ord.compare, compareOfLessAndEq, not_lt.mpr (le_of_lt hgt), ne_of_gt hgt, ↓reduceIte] at h
       exact absurd h (by decide)
     | inr heq =>
-      simp only [Ord.compare, compare, compareOfLessAndEq, heq, lt_irrefl, ↓reduceIte] at h
+      simp only [Ord.compare, compareOfLessAndEq, heq, lt_irrefl, ↓reduceIte] at h
       exact absurd h (by decide)
   · intro h
-    simp only [Ord.compare, compare, compareOfLessAndEq, h, ↓reduceIte]
+    simp only [Ord.compare, compareOfLessAndEq, h, ↓reduceIte]
 
 private theorem ord_compare_int_eq (a b : ℤ) : Ord.compare a b = .eq ↔ a = b := by
   constructor
@@ -572,13 +570,13 @@ private theorem ord_compare_int_eq (a b : ℤ) : Ord.compare a b = .eq ↔ a = b
     have hcases := lt_or_gt_of_ne hne
     cases hcases with
     | inl hlt =>
-      simp only [Ord.compare, compare, compareOfLessAndEq, hlt, ↓reduceIte] at h
+      simp only [Ord.compare, compareOfLessAndEq, hlt, ↓reduceIte] at h
       exact absurd h (by decide)
     | inr hgt =>
-      simp only [Ord.compare, compare, compareOfLessAndEq, not_lt.mpr (le_of_lt hgt), ne_of_gt hgt, ↓reduceIte] at h
+      simp only [Ord.compare, compareOfLessAndEq, not_lt.mpr (le_of_lt hgt), ne_of_gt hgt, ↓reduceIte] at h
       exact absurd h (by decide)
   · intro h
-    simp only [Ord.compare, compare, compareOfLessAndEq, h, lt_irrefl, ↓reduceIte]
+    simp only [Ord.compare, compareOfLessAndEq, h, lt_irrefl, ↓reduceIte]
 
 private theorem ord_compare_int_gt (a b : ℤ) : Ord.compare a b = .gt ↔ a > b := by
   constructor
@@ -588,13 +586,13 @@ private theorem ord_compare_int_gt (a b : ℤ) : Ord.compare a b = .gt ↔ a > b
     have hcases := lt_or_eq_of_le hle
     cases hcases with
     | inl hlt =>
-      simp only [Ord.compare, compare, compareOfLessAndEq, hlt, ↓reduceIte] at h
+      simp only [Ord.compare, compareOfLessAndEq, hlt, ↓reduceIte] at h
       exact absurd h (by decide)
     | inr heq =>
-      simp only [Ord.compare, compare, compareOfLessAndEq, heq, lt_irrefl, ↓reduceIte] at h
+      simp only [Ord.compare, compareOfLessAndEq, heq, lt_irrefl, ↓reduceIte] at h
       exact absurd h (by decide)
   · intro h
-    simp only [Ord.compare, compare, compareOfLessAndEq, not_lt.mpr (le_of_lt h), ne_of_gt h, ↓reduceIte]
+    simp only [Ord.compare, compareOfLessAndEq, not_lt.mpr (le_of_lt h), ne_of_gt h, ↓reduceIte]
 
 /-- Ord.compare not gt means ≤ -/
 private theorem ord_compare_ne_gt_iff (a b : ℤ) : (Ord.compare a b != .gt) = true ↔ a ≤ b := by
