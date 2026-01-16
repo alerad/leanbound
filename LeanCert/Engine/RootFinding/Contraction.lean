@@ -72,15 +72,16 @@ theorem newton_contraction_has_root (e : Expr) (hsupp : ExprSupported e) (hvar0 
     rcases hN with hTM | hSimple
     · simp only [newtonStepTM] at hTM
       cases htm : TaylorModel.fromExpr? e I 1 with
-      | none => simp only [htm] at hTM; exact Option.noConfusion hTM
+      | none => simp only [htm, Option.bind_eq_bind, Option.bind_none, reduceCtorEq] at hTM
       | some tm =>
         simp only [htm] at hTM
         by_cases h : (derivInterval e (fun _ => I) 0).containsZero
-        · simp only [h] at hTM; exact Option.noConfusion hTM
+        · simp only [h, ↓reduceDIte, Option.bind_eq_bind, Option.bind_fun_none,
+          reduceCtorEq] at hTM
         · exact h
     · simp only [newtonStepSimple] at hSimple
       by_cases h : (derivInterval e (fun _ => I) 0).containsZero
-      · simp only [h] at hSimple; exact Option.noConfusion hSimple
+      · simp only [h, ↓reduceDIte, reduceCtorEq] at hSimple
       · exact h
 
   simp only [IntervalRat.containsZero, not_and_or, not_le] at hdI_nonzero
