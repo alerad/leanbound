@@ -53,18 +53,144 @@ open LeanBound.Numerics.Certificate
 
 /-! ## Goal Normalization -/
 
+/-- Bridge: Set.Icc bound to arrow chain (lo ≤ x → x ≤ hi). -/
+theorem forall_arrow_of_Icc {α} [Preorder α] {lo hi : α} {P : α → Prop} :
+    (∀ x ∈ Set.Icc lo hi, P x) → ∀ x, lo ≤ x → x ≤ hi → P x := by
+  intro h x hxlo hxhi
+  exact h x ⟨hxlo, hxhi⟩
+
+/-- Bridge: Set.Icc bound to reversed arrow chain (x ≤ hi → lo ≤ x). -/
+theorem forall_arrow_of_Icc_rev {α} [Preorder α] {lo hi : α} {P : α → Prop} :
+    (∀ x ∈ Set.Icc lo hi, P x) → ∀ x, x ≤ hi → lo ≤ x → P x := by
+  intro h x hxhi hxlo
+  exact h x ⟨hxlo, hxhi⟩
+
+/-- Bridge: Set.Icc bound to conjunctive domain (lo ≤ x ∧ x ≤ hi). -/
+theorem forall_and_of_Icc {α} [Preorder α] {lo hi : α} {P : α → Prop} :
+    (∀ x ∈ Set.Icc lo hi, P x) → ∀ x, (lo ≤ x ∧ x ≤ hi) → P x := by
+  intro h x hx
+  exact h x hx
+
+/-- Bridge: Set.Icc bound to reversed conjunctive domain (x ≤ hi ∧ lo ≤ x). -/
+theorem forall_and_of_Icc_rev {α} [Preorder α] {lo hi : α} {P : α → Prop} :
+    (∀ x ∈ Set.Icc lo hi, P x) → ∀ x, (x ≤ hi ∧ lo ≤ x) → P x := by
+  intro h x hx
+  exact h x ⟨hx.2, hx.1⟩
+
+private def goalNeedsIccWrapper (goalType : Lean.Expr) : MetaM Bool := do
+  let goalType ← whnf goalType
+  if !goalType.isForall then
+    return false
+  let .forallE name ty body _ := goalType | return false
+  withLocalDeclD name ty fun x => do
+    let bodyRaw := body.instantiate1 x
+    let bodyWhnf ← whnf bodyRaw
+    if !bodyWhnf.isForall then
+      return false
+    let .forallE _ memTy innerBody _ := bodyWhnf | return false
+    let memTyRaw :=
+      match bodyRaw with
+      | .forallE _ memTyRaw _ _ => memTyRaw
+      | _ => memTy
+
+    let isMembership : MetaM Bool := do
+      match_expr memTyRaw with
+      | Membership.mem _ _ _ _ _ => return true
+      | _ => return false
+
+    if (← isMembership) then
+      return false
+
+    let isAnd (e : Lean.Expr) : Bool :=
+      match e with
+      | .app (.app (.const ``And _) _) _ => true
+      | _ => false
+
+    let getLeArgs (e : Lean.Expr) : MetaM (Option (Lean.Expr × Lean.Expr)) := do
+      let fn := e.getAppFn
+      let args := e.getAppArgs
+      if fn.isConstOf ``LE.le && args.size >= 4 then
+        return some (args[2]!, args[3]!)
+      if fn.isConstOf ``LT.lt && args.size >= 4 then
+        return some (args[2]!, args[3]!)
+      return none
+
+    let isBoundProp (e : Lean.Expr) : MetaM Bool := do
+      if let some (a, b) ← getLeArgs e then
+        if (← isDefEq a x) || (← isDefEq b x) then
+          return true
+      return false
+
+    let memTyWhnf ← withTransparency TransparencyMode.all <| whnf memTy
+    if isAnd memTy || isAnd memTyWhnf then
+      return true
+
+    if innerBody.isForall then
+      let .forallE _ memTy2 _ _ := innerBody | return false
+      let memTy2Whnf ← withTransparency TransparencyMode.all <| whnf memTy2
+      if (← isBoundProp memTy) || (← isBoundProp memTyWhnf) then
+        if (← isBoundProp memTy2) || (← isBoundProp memTy2Whnf) then
+          return true
+    return false
+
+private partial def hasNonPropBinder (e : Lean.Expr) : MetaM Bool := do
+  let eWhnf ← whnf e
+  if !eWhnf.isForall then
+    return false
+  let .forallE name ty body _ := eWhnf | return false
+  if (← isProp ty) then
+    withLocalDeclD name ty fun h => do
+      hasNonPropBinder (body.instantiate1 h)
+  else
+    return true
+
+private def goalIsMultivariate (goalType : Lean.Expr) : MetaM Bool := do
+  let goalType ← whnf goalType
+  if !goalType.isForall then
+    return false
+  let .forallE name ty body _ := goalType | return false
+  withLocalDeclD name ty fun x => do
+    let body := body.instantiate1 x
+    let bodyWhnf ← whnf body
+    if !bodyWhnf.isForall then
+      return false
+    let .forallE _ memTy innerBody _ := bodyWhnf | return false
+    withLocalDeclD `hx memTy fun _hx => do
+      let innerInst := innerBody.instantiate1 _hx
+      hasNonPropBinder innerInst
+
+private def tryNormalizeGoalToIcc : TacticM Bool := do
+  let goal ← getMainGoal
+  if ← goalNeedsIccWrapper (← goal.getType) then
+    try
+      evalTactic (← `(tactic|
+        first
+        | refine (forall_arrow_of_Icc ?_)
+        | refine (forall_arrow_of_Icc_rev ?_)
+        | refine (forall_and_of_Icc ?_)
+        | refine (forall_and_of_Icc_rev ?_)
+      ))
+      return true
+    catch _ => return false
+  else
+    return false
+
 /-- Normalize common goal patterns for interval tactics. -/
 def intervalNormCore : TacticM Unit := do
   try
     evalTactic (← `(tactic|
-      simp only [ge_iff_le, gt_iff_lt, sub_eq_add_neg, Rat.divInt_eq_div] at *))
+      simp only [ge_iff_le, gt_iff_lt, sub_eq_add_neg, Rat.divInt_eq_div,
+        Set.mem_setOf] at *))
   catch _ =>
     pure ()
+  -- Try to normalize the outermost variable to Set.Icc form.
+  -- The parser handles mixed forms, so partial normalization is fine for multivariate goals.
+  discard <| tryNormalizeGoalToIcc
 
 /-- The interval_norm tactic.
 
-    Normalizes inequalities, subtraction, and rational division forms to reduce
-    goal-shape variation before parsing. -/
+    Normalizes inequalities, subtraction, rational division, and domain syntax
+    to reduce goal-shape variation before parsing. -/
 syntax (name := intervalNormTac) "interval_norm" : tactic
 
 @[tactic intervalNormTac]
@@ -135,11 +261,20 @@ private def extractRatFromRat (e : Lean.Expr) : MetaM (Option ℚ) := do
 /-- Try to extract a rational value from a Lean expression that represents a real number.
     Handles: Rat.cast, OfNat.ofNat, Nat.cast, Int.cast, negations, and divisions. -/
 partial def extractRatFromReal (e : Lean.Expr) : MetaM (Option ℚ) := do
+  let e ←
+    if e.isMVar then
+      if let some val ← getExprMVarAssignment? e.mvarId! then
+        instantiateMVars val
+      else
+        pure e
+    else
+      instantiateMVars e
   -- First try without whnf (preserves structure like OfNat.ofNat)
   if let some q ← tryExtract e then
     return some q
   -- Then try with whnf
   let e ← whnf e
+  let e ← instantiateMVars e
   tryExtract e
 where
   tryExtract (e : Lean.Expr) : MetaM (Option ℚ) := do
@@ -236,102 +371,6 @@ structure IntervalInfo where
   /-- If converted from Set.Icc, contains (lo, hi, loRatExpr, hiRatExpr, leProof, origLoExpr, origHiExpr) -/
   fromSetIcc : Option (ℚ × ℚ × Lean.Expr × Lean.Expr × Lean.Expr × Lean.Expr × Lean.Expr) := none
   deriving Repr
-
-/-- Bridge: Set.Icc bound to arrow chain (lo ≤ x → x ≤ hi). -/
-theorem forall_arrow_of_Icc {α} [Preorder α] {lo hi : α} {P : α → Prop} :
-    (∀ x ∈ Set.Icc lo hi, P x) → ∀ x, lo ≤ x → x ≤ hi → P x := by
-  intro h x hxlo hxhi
-  exact h x ⟨hxlo, hxhi⟩
-
-/-- Bridge: Set.Icc bound to reversed arrow chain (x ≤ hi → lo ≤ x). -/
-theorem forall_arrow_of_Icc_rev {α} [Preorder α] {lo hi : α} {P : α → Prop} :
-    (∀ x ∈ Set.Icc lo hi, P x) → ∀ x, x ≤ hi → lo ≤ x → P x := by
-  intro h x hxhi hxlo
-  exact h x ⟨hxlo, hxhi⟩
-
-/-- Bridge: Set.Icc bound to conjunctive domain (lo ≤ x ∧ x ≤ hi). -/
-theorem forall_and_of_Icc {α} [Preorder α] {lo hi : α} {P : α → Prop} :
-    (∀ x ∈ Set.Icc lo hi, P x) → ∀ x, (lo ≤ x ∧ x ≤ hi) → P x := by
-  intro h x hx
-  exact h x hx
-
-/-- Bridge: Set.Icc bound to reversed conjunctive domain (x ≤ hi ∧ lo ≤ x). -/
-theorem forall_and_of_Icc_rev {α} [Preorder α] {lo hi : α} {P : α → Prop} :
-    (∀ x ∈ Set.Icc lo hi, P x) → ∀ x, (x ≤ hi ∧ lo ≤ x) → P x := by
-  intro h x hx
-  exact h x ⟨hx.2, hx.1⟩
-
-private def goalNeedsIccWrapper (goalType : Lean.Expr) : MetaM Bool := do
-  let goalType ← whnf goalType
-  if !goalType.isForall then
-    return false
-  let .forallE name ty body _ := goalType | return false
-  withLocalDeclD name ty fun x => do
-    let bodyRaw := body.instantiate1 x
-    let bodyWhnf ← whnf bodyRaw
-    if !bodyWhnf.isForall then
-      return false
-    let .forallE _ memTy innerBody _ := bodyWhnf | return false
-    let memTyRaw :=
-      match bodyRaw with
-      | .forallE _ memTyRaw _ _ => memTyRaw
-      | _ => memTy
-
-    let isMembership : MetaM Bool := do
-      match_expr memTyRaw with
-      | Membership.mem _ _ _ _ _ => return true
-      | _ => return false
-
-    if (← isMembership) then
-      return false
-
-    let isAnd (e : Lean.Expr) : Bool :=
-      match e with
-      | .app (.app (.const ``And _) _) _ => true
-      | _ => false
-
-    let getLeArgs (e : Lean.Expr) : MetaM (Option (Lean.Expr × Lean.Expr)) := do
-      let fn := e.getAppFn
-      let args := e.getAppArgs
-      if fn.isConstOf ``LE.le && args.size >= 4 then
-        return some (args[2]!, args[3]!)
-      if fn.isConstOf ``LT.lt && args.size >= 4 then
-        return some (args[2]!, args[3]!)
-      return none
-
-    let isBoundProp (e : Lean.Expr) : MetaM Bool := do
-      if let some (a, b) ← getLeArgs e then
-        if (← isDefEq a x) || (← isDefEq b x) then
-          return true
-      return false
-
-    let memTyWhnf ← withTransparency TransparencyMode.all <| whnf memTy
-    if isAnd memTy || isAnd memTyWhnf then
-      return true
-
-    if innerBody.isForall then
-      let .forallE _ memTy2 _ _ := innerBody | return false
-      let memTy2Whnf ← withTransparency TransparencyMode.all <| whnf memTy2
-      if (← isBoundProp memTy) || (← isBoundProp memTyWhnf) then
-        if (← isBoundProp memTy2) || (← isBoundProp memTy2Whnf) then
-          return true
-    return false
-
-private def tryNormalizeGoalToIcc : TacticM Bool := do
-  let goal ← getMainGoal
-  if ← goalNeedsIccWrapper (← goal.getType) then
-    try
-      evalTactic (← `(tactic|
-        first
-        | refine (forall_arrow_of_Icc ?_)
-        | refine (forall_arrow_of_Icc_rev ?_)
-        | refine (forall_and_of_Icc ?_)
-        | refine (forall_and_of_Icc_rev ?_)
-      ))
-      return true
-    catch _ => return false
-  else
-    return false
 
 /-- Result of analyzing a bound goal -/
 inductive BoundGoal where
@@ -1497,6 +1536,8 @@ private def extractIntervalFromIntervalRat (memTy : Lean.Expr) (x : Lean.Expr) :
 partial def parseMultivariateBoundGoal (goal : Lean.Expr) : MetaM (Option MultivariateBoundGoal) := do
   -- We need to work within the withLocalDeclD scopes, so we'll return a function that
   -- builds the result while fvars are still valid.
+  -- First, instantiate any metavariables (e.g., from refine/apply) to get the actual goal.
+  let goal ← instantiateMVars goal
   let goal ← if goal.isForall then
     pure goal
   else
