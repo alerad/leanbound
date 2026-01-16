@@ -1040,8 +1040,7 @@ lemma newtonStepCore_extract (e : Expr) (I N : IntervalRat) (cfg : EvalConfig)
   -- The dite splits on containsZero
   by_cases hzero : (derivIntervalCore e I cfg).containsZero
   · -- If dI contains zero, newtonStepCore returns none, contradiction
-    simp only [hzero, dite_true] at hCore
-    exact Option.noConfusion hCore
+    simp only [hzero, ↓reduceDIte, reduceCtorEq] at hCore
   · -- If dI doesn't contain zero, we get an intersection
     simp only [hzero, dite_false] at hCore
     use hzero
@@ -1055,7 +1054,7 @@ lemma newtonStepCore_extract (e : Expr) (I N : IntervalRat) (cfg : EvalConfig)
       · exact congrArg IntervalRat.lo hCore.symm
       · exact congrArg IntervalRat.hi hCore.symm
     · -- The intersection failed, contradiction
-      exact Option.noConfusion hCore
+      simp only [reduceCtorEq] at hCore
 
 /-- Computable check if Newton iteration contracts.
     Returns `true` if `newtonStepCore` produces N with I.lo < N.lo and N.hi < I.hi.
@@ -1287,8 +1286,7 @@ theorem newton_step_core_at_most_one_root (e : Expr) (hsupp : ExprSupported e) (
   by_cases hzero : dI.containsZero
   · -- If dI contains zero, newtonStepCore returns none, but hN says it's some N
     unfold newtonStepCore at hN
-    simp only [← hdI_def, dif_pos hzero] at hN
-    exact Option.noConfusion hN
+    simp only [← hdI_def, dif_pos hzero, reduceCtorEq] at hN
   · -- dI doesn't contain zero, so derivative is nonzero everywhere on I
     simp only [IntervalRat.containsZero, not_and_or, not_le] at hzero
 
