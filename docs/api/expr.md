@@ -2,12 +2,12 @@
 
 ## Building Expressions
 
-LeanBound uses symbolic expressions that are reified to the Lean AST.
+LeanCert uses symbolic expressions that are reified to the Lean AST.
 
 ### Variables
 
 ```python
-import leanbound as lf
+import leancert as lc
 
 x = lf.var('x')
 y = lf.var('y')
@@ -63,7 +63,7 @@ lf.clamp(x, lo, hi)  # Equivalent to Min(Max(x, lo), hi)
 ### Intervals
 
 ```python
-from leanbound import Interval
+from leancert import Interval
 
 I = Interval(0, 1)       # [0, 1]
 I = Interval(-1, 1)      # [-1, 1]
@@ -73,7 +73,7 @@ I = Interval("1/3", 1)   # [1/3, 1] (exact rational)
 ### Boxes (Multi-dimensional)
 
 ```python
-from leanbound import Box
+from leancert import Box
 
 # Using a dictionary
 box = Box({'x': (0, 1), 'y': (-1, 1)})
@@ -84,11 +84,11 @@ result = lf.find_bounds(x + y, {'x': (0, 1), 'y': (0, 1)})
 
 ## Simplification
 
-LeanBound includes symbolic simplification to mitigate the dependency problem in interval arithmetic.
+LeanCert includes symbolic simplification to mitigate the dependency problem in interval arithmetic.
 
-::: leanbound.simplify.simplify
+::: leancert.simplify.simplify
 
-::: leanbound.simplify.expand
+::: leancert.simplify.expand
 
 ### Example
 
@@ -106,13 +106,13 @@ simplified = lf.simplify(expr)
 
 ## Expression Reference
 
-::: leanbound.expr.Expr
+::: leancert.expr.Expr
     options:
       show_root_heading: true
       members:
         - free_vars
         - substitute
 
-::: leanbound.expr.var
+::: leancert.expr.var
 
-::: leanbound.expr.const
+::: leancert.expr.const

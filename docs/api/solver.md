@@ -4,7 +4,7 @@ The `Solver` class is the main entry point for the Python SDK. It manages commun
 
 ## Solver Class
 
-::: leanbound.solver.Solver
+::: leancert.solver.Solver
     options:
       members:
         - __init__
@@ -20,12 +20,12 @@ The `Solver` class is the main entry point for the Python SDK. It manages commun
 
 These standalone functions use a default solver instance for quick scripting.
 
-::: leanbound.solver.find_bounds
+::: leancert.solver.find_bounds
 
-::: leanbound.solver.find_roots
+::: leancert.solver.find_roots
 
-::: leanbound.solver.find_unique_root
+::: leancert.solver.find_unique_root
 
-::: leanbound.solver.verify_bound
+::: leancert.solver.verify_bound
 
-::: leanbound.solver.integrate
+::: leancert.solver.integrate

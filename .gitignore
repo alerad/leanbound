@@ -11,3 +11,6 @@ site/
 __pycache__/
 *.pyc
 .lake/
+
+# Scratch/debug files
+tmp_*.lean

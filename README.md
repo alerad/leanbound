@@ -1,14 +1,14 @@
-# LeanBound
+# LeanCert
 
 Verified numerical computation and bound certification for Lean 4.
 
-LeanBound automates proofs of inequalities, global extrema, root existence, and integration bounds using rigorous interval arithmetic and Taylor models. Unlike standard numerical libraries that provide approximations, LeanBound produces formal proofs.
+LeanCert automates proofs of inequalities, global extrema, root existence, and integration bounds using rigorous interval arithmetic and Taylor models. Unlike standard numerical libraries that provide approximations, LeanCert produces formal proofs.
 
 ## Overview
 
-LeanBound operates on a certificate-driven architecture:
+LeanCert operates on a certificate-driven architecture:
 
-1. **Reification**: Mathematical expressions are converted to an AST (`LeanBound.Core.Expr`)
+1. **Reification**: Mathematical expressions are converted to an AST (`LeanCert.Core.Expr`)
 2. **Computation**: Algorithms run on the AST using rational interval arithmetic
 3. **Certification**: Golden theorems lift boolean results to semantic proofs about real numbers
 
@@ -20,8 +20,8 @@ Add to your `lakefile.toml`:
 
 ```toml
 [[require]]
-name = "leanbound"
-git = "https://github.com/alerad/leanbound"
+name = "leancert"
+git = "https://github.com/alerad/leancert"
 rev = "main"
 ```
 
@@ -32,21 +32,21 @@ Then run `lake update`.
 ### Tactics
 
 ```lean
-import LeanBound.Tactic.IntervalAuto
-import LeanBound.Tactic.Discovery
+import LeanCert.Tactic.IntervalAuto
+import LeanCert.Tactic.Discovery
 
-open LeanBound.Core
+open LeanCert.Core
 
 -- Prove bounds on transcendentals using natural Set.Icc syntax
-example : ∀ x ∈ Set.Icc (0 : ℝ) 1, Real.exp x ≤ 3 := by interval_bound 15
-example : ∀ x ∈ Set.Icc (0 : ℝ) 1, Real.sin x ≤ 1 := by interval_bound
-example : ∀ x ∈ Set.Icc (0 : ℝ) 1, 0 ≤ Real.exp x := by interval_bound
+example : ∀ x ∈ Set.Icc (0 : ℝ) 1, Real.exp x ≤ 3 := by certify_bound 15
+example : ∀ x ∈ Set.Icc (0 : ℝ) 1, Real.sin x ≤ 1 := by certify_bound
+example : ∀ x ∈ Set.Icc (0 : ℝ) 1, 0 ≤ Real.exp x := by certify_bound
 
 -- Or with explicit IntervalRat for more control
 def I01 : IntervalRat := ⟨0, 1, by norm_num⟩
 def I12 : IntervalRat := ⟨1, 2, by norm_num⟩
 
-example : ∀ x ∈ I01, Real.exp x ≤ (3 : ℚ) := by interval_bound 15
+example : ∀ x ∈ I01, Real.exp x ≤ (3 : ℚ) := by certify_bound 15
 
 -- Prove root existence (√2) via sign change
 example : ∃ x ∈ I12, Expr.eval (fun _ => x)
@@ -57,9 +57,9 @@ example : ∃ x ∈ I12, Expr.eval (fun _ => x)
 ### Direct API
 
 ```lean
-import LeanBound.Numerics.Certificate
+import LeanCert.Validity
 
-open LeanBound.Core LeanBound.Numerics LeanBound.Numerics.Certificate
+open LeanCert.Core LeanCert.Engine LeanCert.Validity
 
 def I01 : IntervalRat := ⟨0, 1, by norm_num⟩
 def exprExp : Expr := Expr.exp (Expr.var 0)
@@ -76,10 +76,10 @@ theorem exp_bounded : ∀ x ∈ I01, Expr.eval (fun _ => x) exprExp ≤ (3 : ℚ
 Interactive commands for exploration (use in editor, not in proofs):
 
 ```lean
-import LeanBound.Discovery
+import LeanCert.Discovery
 
 -- Find global minimum
-#minimize (fun x => x^2 + Real.sin x) on [-2, 2]
+#find_min (fun x => x^2 + Real.sin x) on [-2, 2]
 
 -- Explore function behavior
 #explore (Expr.cos (Expr.var 0)) on [0, 4]
@@ -89,13 +89,13 @@ For use in proofs, use the corresponding tactics: `interval_minimize`, `interval
 
 ### Examples
 
-See `LeanBound/Examples/Showcase.lean` for classic inequalities proved with the library, including bounds on `exp`, `sin`, `cos`, and composed expressions.
+See `LeanCert/Examples/Showcase.lean` for classic inequalities proved with the library, including bounds on `exp`, `sin`, `cos`, and composed expressions.
 
 ## Architecture
 
 ### Expression AST
 
-`LeanBound.Core.Expr` supports:
+`LeanCert.Core.Expr` supports:
 - Arithmetic: `const`, `var`, `add`, `mul`, `neg`, `inv`
 - Transcendentals: `exp`, `log`, `sin`, `cos`, `sinh`, `cosh`, `tanh`, `atan`, `arsinh`, `atanh`
 - Special functions: `sinc`, `erf`
@@ -121,7 +121,7 @@ These bridge computation and proof. If the checker returns `true`, the theorem h
 | Integration | `verify_integral_bound` | `checkIntegralBoundsCore` |
 | Global minimum | `verify_global_lower_bound` | `checkGlobalLowerBound` |
 
-### Numerics Engine
+### Engine
 
 - `evalIntervalCore`: Interval evaluation with Taylor models
 - `globalMinimizeCore`: Branch-and-bound optimization
@@ -131,7 +131,7 @@ These bridge computation and proof. If the checker returns `true`, the theorem h
 
 ## Python SDK
 
-LeanBound includes a Python SDK for integration with external tools.
+LeanCert includes a Python SDK for integration with external tools.
 
 ### Installation
 
@@ -143,21 +143,21 @@ pip install -e .
 ### Usage
 
 ```python
-import leanbound as lf
+import leancert as lc
 
 # Define expressions with named variables
-x = lf.var('x')
-expr = x**2 + lf.sin(x)
+x = lc.var('x')
+expr = x**2 + lc.sin(x)
 
 # Find bounds on an interval
-result = lf.find_bounds(expr, {'x': (0, 1)})
+result = lc.find_bounds(expr, {'x': (0, 1)})
 print(result.min_bound, result.max_bound)
 
 # Find roots
-roots = lf.find_roots(x**2 - 2, {'x': (1, 2)})
+roots = lc.find_roots(x**2 - 2, {'x': (1, 2)})
 
 # Verify a bound
-verified = lf.verify_bound(expr, {'x': (0, 1)}, upper=2)
+verified = lc.verify_bound(expr, {'x': (0, 1)}, upper=2)
 ```
 
 ### Features
@@ -174,7 +174,7 @@ verified = lf.verify_bound(expr, {'x': (0, 1)}, upper=2)
 
 ## Lean Bridge
 
-`LeanBound.Bridge` provides a JSON-RPC interface over stdin/stdout:
+`LeanCert.Bridge` provides a JSON-RPC interface over stdin/stdout:
 
 ```json
 {"method": "eval_interval", "params": {"expr": "x^2", "box": [[0, 1]]}}
@@ -185,7 +185,7 @@ This enables workflows where Python handles search strategy while Lean provides 
 
 ## Neural Network Verification
 
-LeanBound includes verified interval propagation for neural networks, enabling robustness verification.
+LeanCert includes verified interval propagation for neural networks, enabling robustness verification.
 
 ### Features
 
@@ -196,9 +196,9 @@ LeanBound includes verified interval propagation for neural networks, enabling r
 ### Quick Example
 
 ```lean
-import LeanBound.ML.Network
+import LeanCert.ML.Network
 
-open LeanBound.ML
+open LeanCert.ML
 
 -- Define a 2-layer network
 def net : TwoLayerNet := {
@@ -245,7 +245,7 @@ The following have complete proofs with no `sorry`:
 
 ### Dyadic Backend (v1.1)
 
-LeanBound includes two interval arithmetic backends:
+LeanCert includes two interval arithmetic backends:
 
 | Backend | Best For | Trade-off |
 |---------|----------|-----------|
@@ -269,9 +269,9 @@ LeanBound includes two interval arithmetic backends:
 **Usage:**
 
 ```lean
-import LeanBound.Numerics.IntervalEvalDyadic
+import LeanCert.Engine.IntervalEvalDyadic
 
-open LeanBound.Core LeanBound.Numerics
+open LeanCert.Core LeanCert.Engine
 
 -- Standard precision (53 bits, like IEEE double)
 def result := evalIntervalDyadic expr env {}
@@ -283,14 +283,14 @@ def fast := evalIntervalDyadic expr env DyadicConfig.fast
 def precise := evalIntervalDyadic expr env DyadicConfig.highPrecision
 ```
 
-See `LeanBound/Test/BenchmarkBackends.lean` for comprehensive benchmarks.
+See `LeanCert/Test/BenchmarkBackends.lean` for comprehensive benchmarks.
 
 ### Work in Progress
 
 To find all `sorry` occurrences:
 
 ```bash
-grep -rn "sorry" --include="*.lean" LeanBound/ | grep -v "no sorry"
+grep -rn "sorry" --include="*.lean" LeanCert/ | grep -v "no sorry"
 ```
 
 ## Contributing
@@ -311,6 +311,6 @@ Open an issue before starting major work.
 - **AGPL-3.0** — Free for open source projects and non-commercial use
 - **Commercial License** — Required for proprietary/closed-source use
 
-If your organization uses LeanBound in production without releasing your code under AGPL, contact aleloid@proton.me for commercial licensing.
+If your organization uses LeanCert in production without releasing your code under AGPL, contact aleloid@proton.me for commercial licensing.
 
 See [LICENSE](LICENSE) for the full AGPL-3.0 text.

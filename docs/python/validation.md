@@ -1,6 +1,6 @@
 # Bug Validation Framework
 
-LeanBound includes a validation framework to filter false positives from counter-example searches.
+LeanCert includes a validation framework to filter false positives from counter-example searches.
 
 ## The Problem
 
@@ -15,8 +15,8 @@ The validation framework helps distinguish real bugs from false alarms.
 ## Quick Example
 
 ```python
-import leanbound as lf
-from leanbound.validation import BugValidator
+import leancert as lc
+from leancert.validation import BugValidator
 
 # Expression that might have issues
 x = lf.var('x')
@@ -48,7 +48,7 @@ print(verdict)
 Main entry point for validation.
 
 ```python
-from leanbound.validation import BugValidator
+from leancert.validation import BugValidator
 
 validator = BugValidator()
 verdict = validator.validate(expr, domain, reported_issue)
@@ -59,7 +59,7 @@ verdict = validator.validate(expr, domain, reported_issue)
 Detects if bounds blew up due to interval arithmetic limitations, not actual unboundedness.
 
 ```python
-from leanbound.validation import IntervalExplosionDetector
+from leancert.validation import IntervalExplosionDetector
 
 detector = IntervalExplosionDetector()
 
@@ -81,7 +81,7 @@ is_explosion = detector.detect(
 Concretely evaluates the expression at reported counter-example points.
 
 ```python
-from leanbound.validation import CounterexampleVerifier
+from leancert.validation import CounterexampleVerifier
 
 verifier = CounterexampleVerifier()
 
@@ -100,7 +100,7 @@ is_real = verifier.verify(
 Checks code context for indicators that behavior is intentional.
 
 ```python
-from leanbound.validation import CommentAnalyzer
+from leancert.validation import CommentAnalyzer
 
 analyzer = CommentAnalyzer()
 
@@ -175,8 +175,8 @@ validator = BugValidator(
 ## Integration with CI
 
 ```python
-import leanbound as lf
-from leanbound.validation import BugValidator
+import leancert as lc
+from leancert.validation import BugValidator
 
 def check_module(module_path):
     """Check a module for real bugs, filtering false positives."""
@@ -226,8 +226,8 @@ class BugReport:
 ## Example: Filtering False Positives
 
 ```python
-import leanbound as lf
-from leanbound.validation import BugValidator
+import leancert as lc
+from leancert.validation import BugValidator
 
 x = lf.var('x')
 

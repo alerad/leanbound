@@ -4,14 +4,14 @@ Export trained PyTorch models to Lean for formal verification.
 
 ## Overview
 
-LeanBound can verify properties of neural networks, but first you need to convert your PyTorch model to Lean's representation. The `leanbound.nn` module handles this conversion.
+LeanCert can verify properties of neural networks, but first you need to convert your PyTorch model to Lean's representation. The `leancert.nn` module handles this conversion.
 
 ## Quick Example
 
 ```python
 import torch
 import torch.nn as nn
-import leanbound as lf
+import leancert as lc
 
 # Your trained PyTorch model
 class MyNetwork(nn.Module):
@@ -27,7 +27,7 @@ class MyNetwork(nn.Module):
 model = MyNetwork()
 model.load_state_dict(torch.load("model.pt"))
 
-# Convert to LeanBound
+# Convert to LeanCert
 net = lf.nn.from_pytorch(model, input_names=['x1', 'x2'])
 
 # Export to Lean code
@@ -44,7 +44,7 @@ print(lean_code)
 The exported Lean code looks like:
 
 ```lean
-import LeanBound.ML.Network
+import LeanCert.ML.Network
 
 namespace MyProject.Networks
 
@@ -88,7 +88,7 @@ lf.nn.from_pytorch(
 ```python
 net.export_lean(
     name: str,
-    namespace: str = "LeanBound.Examples",
+    namespace: str = "LeanCert.Examples",
     include_imports: bool = True
 ) -> str
 ```
@@ -116,7 +116,7 @@ layer = lf.nn.Layer.from_numpy(weights, bias, max_denominator=100)
 
 ## Rational Approximation
 
-Neural network weights are floats, but Lean verification uses exact rationals. LeanBound approximates each weight as a fraction:
+Neural network weights are floats, but Lean verification uses exact rationals. LeanCert approximates each weight as a fraction:
 
 ```python
 # float 0.333... becomes 1/3
@@ -149,7 +149,7 @@ with open("MyNetwork.lean", "w") as f:
 
 ```lean
 -- MyNetwork.lean (generated)
-import LeanBound.ML.Network
+import LeanCert.ML.Network
 
 def classifier : List Layer := [...]
 
@@ -170,14 +170,14 @@ theorem classifier_robust :
 | RNN/LSTM | Not supported |
 | Transformer | Manual conversion |
 
-For transformers, use the `LeanBound.ML.Transformer` module directly in Lean.
+For transformers, use the `LeanCert.ML.Transformer` module directly in Lean.
 
 ## Example: MNIST Classifier
 
 ```python
 import torch
 import torch.nn as nn
-import leanbound as lf
+import leancert as lc
 
 class MNISTNet(nn.Module):
     def __init__(self):

@@ -1,6 +1,6 @@
 # Neural Network & Transformer Verification
 
-LeanBound includes verified neural network verification based on interval propagation and DeepPoly relaxations, with support for modern architectures including Transformers.
+LeanCert includes verified neural network verification based on interval propagation and DeepPoly relaxations, with support for modern architectures including Transformers.
 
 ## Overview
 
@@ -22,9 +22,9 @@ The ML module provides:
 ## Quick Example
 
 ```lean
-import LeanBound.ML.Network
+import LeanCert.ML.Network
 
-open LeanBound.ML
+open LeanCert.ML
 
 -- Define a simple 2-layer network
 def myNet : TwoLayerNet := {
@@ -154,14 +154,14 @@ theorem mem_geluInterval {x : ℝ} {I : IntervalDyadic} (hx : x ∈ I) :
 
 ### Self-Attention
 
-LeanBound verifies the scaled dot-product attention mechanism:
+LeanCert verifies the scaled dot-product attention mechanism:
 
 \\[
 \text{Attention}(Q, K, V) = \text{softmax}\left(\frac{Q \cdot K^T}{\sqrt{d_k}}\right) \cdot V
 \\]
 
 ```lean
-import LeanBound.ML.Attention
+import LeanCert.ML.Attention
 
 -- Verified attention output bounds
 theorem mem_scaledDotProductAttention
@@ -178,7 +178,7 @@ theorem mem_scaledDotProductAttention
 Interval bounds for LayerNorm are computed soundly:
 
 ```lean
-import LeanBound.ML.LayerNorm
+import LeanCert.ML.LayerNorm
 
 -- LayerNorm: y = (x - μ) / σ * γ + β
 theorem mem_layerNormInterval {x : Vector n ℝ} {I : IntervalVector n}
@@ -190,7 +190,7 @@ theorem mem_layerNormInterval {x : Vector n ℝ} {I : IntervalVector n}
 
 ## Optimized Implementation
 
-For real-world networks, the `LeanBound.ML.Optimized` module provides:
+For real-world networks, the `LeanCert.ML.Optimized` module provides:
 
 | Optimization | Speedup | Description |
 |--------------|---------|-------------|
@@ -199,9 +199,9 @@ For real-world networks, the `LeanBound.ML.Optimized` module provides:
 | Common Exponent Alignment | ~10-50x | Pure integer (GMP) arithmetic |
 
 ```lean
-import LeanBound.ML.Optimized
+import LeanCert.ML.Optimized
 
-open LeanBound.ML.Optimized
+open LeanCert.ML.Optimized
 
 -- Create quantized network for fast propagation
 def qnet := QuantizedNet.ofLayers myLayers

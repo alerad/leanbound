@@ -1,6 +1,6 @@
 # Golden Theorems
 
-LeanBound operates on a **certificate-driven architecture**. The Python side discovers facts, and the Lean side verifies them using **Golden Theorems**.
+LeanCert operates on a **certificate-driven architecture**. The Python side discovers facts, and the Lean side verifies them using **Golden Theorems**.
 
 ## Concept
 
@@ -16,7 +16,7 @@ The key insight is that the checker runs in the Lean kernel using computable rat
 
 ## Core Theorems
 
-All Golden Theorems are defined in `Numerics/Certificate.lean`.
+All Golden Theorems are defined in `Validity/Bounds.lean`.
 
 ### Bound Verification
 

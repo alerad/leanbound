@@ -1,13 +1,13 @@
-# LeanBound
+# LeanCert
 
 **Verified numerical computation and bound certification for Lean 4.**
 
-LeanBound automates proofs of inequalities, global extrema, root existence, and integration bounds using rigorous interval arithmetic and Taylor models. Unlike standard numerical libraries that provide approximations, LeanBound produces **formal proofs**.
+LeanCert automates proofs of inequalities, global extrema, root existence, and integration bounds using rigorous interval arithmetic and Taylor models. Unlike standard numerical libraries that provide approximations, LeanCert produces **formal proofs**.
 
 ## Key Features
 
 - **Rigorous Interval Arithmetic**: Computable bounds with formal correctness proofs
-- **Kernel-Only Verification**: `fast_bound` tactic uses `decide` for proofs trusted only by the Lean kernel
+- **Kernel-Only Verification**: `certify_kernel` tactic uses `decide` for proofs trusted only by the Lean kernel
 - **Global Optimization**: Branch-and-bound with verified lower/upper bounds
 - **Root Finding**: Existence proofs (bisection) and uniqueness proofs (Newton contraction)
 - **Integration**: Verified Riemann sum bounds
@@ -21,7 +21,7 @@ LeanBound automates proofs of inequalities, global extrema, root existence, and 
 ### Python
 
 ```python
-import leanbound as lf
+import leancert as lc
 
 x = lf.var('x')
 expr = x**2 + lf.sin(x)
@@ -37,15 +37,15 @@ roots = lf.find_roots(x**2 - 2, {'x': (1, 2)})
 ### Lean
 
 ```lean
-import LeanBound.Tactic.IntervalAuto
-import LeanBound.Tactic.Discovery
+import LeanCert.Tactic.IntervalAuto
+import LeanCert.Tactic.Discovery
 
-open LeanBound.Core
+open LeanCert.Core
 
 -- Prove bounds using natural Set.Icc syntax
-example : ∀ x ∈ Set.Icc (0 : ℝ) 1, Real.exp x ≤ 3 := by interval_bound 15
-example : ∀ x ∈ Set.Icc (0 : ℝ) 1, Real.sin x ≤ 1 := by interval_bound
-example : ∀ x ∈ Set.Icc (0 : ℝ) 1, 0 ≤ Real.exp x := by interval_bound
+example : ∀ x ∈ Set.Icc (0 : ℝ) 1, Real.exp x ≤ 3 := by certify_bound 15
+example : ∀ x ∈ Set.Icc (0 : ℝ) 1, Real.sin x ≤ 1 := by certify_bound
+example : ∀ x ∈ Set.Icc (0 : ℝ) 1, 0 ≤ Real.exp x := by certify_bound
 
 -- Prove root existence (√2) via sign change
 def I12 : IntervalRat := ⟨1, 2, by norm_num⟩
@@ -56,15 +56,15 @@ example : ∃ x ∈ I12, Expr.eval (fun _ => x)
 
 ## Architecture
 
-LeanBound operates on a **certificate-driven architecture**:
+LeanCert operates on a **certificate-driven architecture**:
 
-1. **Reification**: Mathematical expressions are converted to an AST (`LeanBound.Core.Expr`)
+1. **Reification**: Mathematical expressions are converted to an AST (`LeanCert.Core.Expr`)
 2. **Computation**: Algorithms run on the AST using interval arithmetic
 3. **Certification**: Golden theorems lift boolean results to semantic proofs about real numbers
 
 This separation allows efficient computation while maintaining full formal verification.
 
-**Two Backends**: LeanBound includes both rational (`evalIntervalCore`) and dyadic (`evalIntervalDyadic`) interval arithmetic. The dyadic backend is essential for deep expressions like neural networks, where rational denominators would explode exponentially.
+**Two Backends**: LeanCert includes both rational (`evalIntervalCore`) and dyadic (`evalIntervalDyadic`) interval arithmetic. The dyadic backend is essential for deep expressions like neural networks, where rational denominators would explode exponentially.
 
 ## Installation
 
@@ -74,8 +74,8 @@ Add to your `lakefile.toml`:
 
 ```toml
 [[require]]
-name = "leanbound"
-git = "https://github.com/yale/leanbound"
+name = "leancert"
+git = "https://github.com/yale/leancert"
 rev = "main"
 ```
 

@@ -1,19 +1,19 @@
 # Quickstart
 
-This guide walks through the main use cases for LeanBound.
+This guide walks through the main use cases for LeanCert.
 
 ## Python SDK
 
 ### Finding Bounds
 
 ```python
-import leanbound as lf
+import leancert as lc
 
-x = lf.var('x')
-expr = x**2 + lf.sin(x)
+x = lc.var('x')
+expr = x**2 + lc.sin(x)
 
 # Find min/max on an interval
-result = lf.find_bounds(expr, {'x': (0, 1)})
+result = lc.find_bounds(expr, {'x': (0, 1)})
 
 print(f"Minimum: {result.min_bound}")
 print(f"Maximum: {result.max_bound}")
@@ -23,7 +23,7 @@ print(f"Maximum: {result.max_bound}")
 
 ```python
 # Verify that x^2 + sin(x) ≤ 2 on [0, 1]
-verified = lf.verify_bound(expr, {'x': (0, 1)}, upper=2)
+verified = lc.verify_bound(expr, {'x': (0, 1)}, upper=2)
 
 if verified.success:
     print("Bound verified!")
@@ -35,7 +35,7 @@ if verified.success:
 
 ```python
 # Find where x^2 - 2 = 0 on [1, 2]
-roots = lf.find_roots(x**2 - 2, {'x': (1, 2)})
+roots = lc.find_roots(x**2 - 2, {'x': (1, 2)})
 
 for root in roots.intervals:
     print(f"Root in [{root.lo}, {root.hi}]")
@@ -43,7 +43,7 @@ for root in roots.intervals:
 
 ### Symbolic Simplification
 
-LeanBound automatically simplifies expressions to avoid interval explosion:
+LeanCert automatically simplifies expressions to avoid interval explosion:
 
 ```python
 # Without simplification: (x*100 + 5) - (x*100) would have wide bounds
@@ -59,7 +59,7 @@ simplified = lf.simplify(expr)  # Returns const(5)
 To prove inequalities involving specific numbers (including transcendentals like π or e), use `interval_decide`:
 
 ```lean
-import LeanBound.Tactic.IntervalAuto
+import LeanCert.Tactic.IntervalAuto
 
 -- Proves π < 3.15
 example : Real.pi < 3.15 := by interval_decide
@@ -71,60 +71,60 @@ example : Real.exp 1 < 3 := by interval_decide
 example : Real.sin 1 + Real.cos 1 < 1.5 := by interval_decide
 ```
 
-### Proving Bounds (`interval_bound`)
+### Proving Bounds (`certify_bound`)
 
 ```lean
-import LeanBound.Tactic.IntervalAuto
+import LeanCert.Tactic.IntervalAuto
 
-open LeanBound.Core
+open LeanCert.Core
 
 -- Use natural Set.Icc syntax with integer bounds
-example : ∀ x ∈ Set.Icc (0 : ℝ) 1, Real.exp x ≤ 3 := by interval_bound 15
-example : ∀ x ∈ Set.Icc (0 : ℝ) 1, Real.sin x ≤ 1 := by interval_bound
-example : ∀ x ∈ Set.Icc (0 : ℝ) 1, 0 ≤ Real.exp x := by interval_bound
+example : ∀ x ∈ Set.Icc (0 : ℝ) 1, Real.exp x ≤ 3 := by certify_bound 15
+example : ∀ x ∈ Set.Icc (0 : ℝ) 1, Real.sin x ≤ 1 := by certify_bound
+example : ∀ x ∈ Set.Icc (0 : ℝ) 1, 0 ≤ Real.exp x := by certify_bound
 
 -- Lower bounds work too
-example : ∀ x ∈ Set.Icc (0 : ℝ) 1, 0 ≤ x * x := by interval_bound
+example : ∀ x ∈ Set.Icc (0 : ℝ) 1, 0 ≤ x * x := by certify_bound
 
 -- Or use explicit IntervalRat for more control
 def I01 : IntervalRat := ⟨0, 1, by norm_num⟩
-example : ∀ x ∈ I01, Real.exp x ≤ (3 : ℚ) := by interval_bound 15
+example : ∀ x ∈ I01, Real.exp x ≤ (3 : ℚ) := by certify_bound 15
 ```
 
-### Kernel-Verified Bounds (`fast_bound`)
+### Kernel-Verified Bounds (`certify_kernel`)
 
-For higher trust, use `fast_bound`. Unlike `interval_bound` which trusts the Lean compiler (`native_decide`), `fast_bound` uses the dyadic backend and reduces proofs entirely within the Lean kernel (`decide`) when possible.
+For higher trust, use `certify_kernel`. Unlike `certify_bound` which trusts the Lean compiler (`native_decide`), `certify_kernel` uses the dyadic backend and reduces proofs entirely within the Lean kernel (`decide`) when possible.
 
 ```lean
-import LeanBound.Tactic.DyadicAuto
+import LeanCert.Tactic.DyadicAuto
 
--- Same syntax as interval_bound, but uses dyadic backend
+-- Same syntax as certify_bound, but uses dyadic backend
 example : ∀ x ∈ Set.Icc (0 : ℝ) 1, x * x + Real.sin x ≤ 2 := by
-  fast_bound
+  certify_kernel
 
 -- Increase precision (bits) for tight bounds
 example : ∀ x ∈ Set.Icc (0 : ℝ) 1, Real.exp x ≤ 2.72 := by
-  fast_bound 100
+  certify_kernel 100
 
 -- Convenience variants
 example : ∀ x ∈ Set.Icc (0 : ℝ) 1, Real.exp x ≤ 2.72 := by
-  fast_bound_precise  -- 100 bits precision
+  certify_kernel_precise  -- 100 bits precision
 
 example : ∀ x ∈ Set.Icc (0 : ℝ) 1, x * x ≤ 2 := by
-  fast_bound_quick    -- 30 bits, faster
+  certify_kernel_quick    -- 30 bits, faster
 ```
 
 | Tactic | Backend | Verification | Trust Level |
 |--------|---------|--------------|-------------|
-| `interval_bound` | Rational | `native_decide` | Compiler + Runtime |
-| `fast_bound` | Dyadic | `decide` (when possible) | Kernel only |
+| `certify_bound` | Rational | `native_decide` | Compiler + Runtime |
+| `certify_kernel` | Dyadic | `decide` (when possible) | Kernel only |
 
 ### Finding Counter-Examples (`interval_refute`)
 
 If a bound doesn't hold, use `interval_refute` to find a counter-example:
 
 ```lean
-import LeanBound.Tactic.Refute
+import LeanCert.Tactic.Refute
 
 -- A false theorem - interval_refute finds where it fails
 example : ∀ x ∈ Set.Icc (-2 : ℝ) 2, x * x ≤ 3 := by
@@ -135,9 +135,9 @@ example : ∀ x ∈ Set.Icc (-2 : ℝ) 2, x * x ≤ 3 := by
 ### Proving Root Existence
 
 ```lean
-import LeanBound.Tactic.Discovery
+import LeanCert.Tactic.Discovery
 
-open LeanBound.Core
+open LeanCert.Core
 
 def I12 : IntervalRat := ⟨1, 2, by norm_num⟩
 
@@ -152,10 +152,10 @@ example : ∃ x ∈ I12, Expr.eval (fun _ => x)
 For interactive exploration in the editor:
 
 ```lean
-import LeanBound.Discovery
+import LeanCert.Discovery
 
 -- Find the global minimum
-#minimize (fun x => x^2 + Real.sin x) on [-2, 2]
+#find_min (fun x => x^2 + Real.sin x) on [-2, 2]
 
 -- Explore function behavior
 #explore (Expr.cos (Expr.var 0)) on [0, 4]
@@ -166,9 +166,9 @@ import LeanBound.Discovery
 For deep expressions (neural networks, optimization loops, nested transcendentals), use the dyadic backend to avoid rational denominator explosion:
 
 ```lean
-import LeanBound.Numerics.IntervalEvalDyadic
+import LeanCert.Engine.IntervalEvalDyadic
 
-open LeanBound.Core LeanBound.Numerics
+open LeanCert.Core LeanCert.Engine
 
 -- Convert interval to dyadic
 def I : IntervalDyadic := IntervalDyadic.ofIntervalRat ⟨0, 1, by norm_num⟩ (-53)
@@ -190,9 +190,9 @@ The dyadic backend keeps mantissa size bounded regardless of expression depth, w
 For more control, use the certificate API directly:
 
 ```lean
-import LeanBound.Numerics.Certificate
+import LeanCert.Validity
 
-open LeanBound.Core LeanBound.Numerics LeanBound.Numerics.Certificate
+open LeanCert.Core LeanCert.Engine LeanCert.Validity
 
 def exprXSq : Expr := Expr.mul (Expr.var 0) (Expr.var 0)
 

@@ -1,12 +1,12 @@
 # Result Types
 
-LeanBound returns rich result objects containing both numerical data and verification certificates.
+LeanCert returns rich result objects containing both numerical data and verification certificates.
 
 ## BoundsResult
 
 Returned by `find_bounds()`.
 
-::: leanbound.result.BoundsResult
+::: leancert.result.BoundsResult
     options:
       show_root_heading: true
 
@@ -14,7 +14,7 @@ Returned by `find_bounds()`.
 
 Returned by `find_roots()`.
 
-::: leanbound.result.RootsResult
+::: leancert.result.RootsResult
     options:
       show_root_heading: true
 
@@ -22,7 +22,7 @@ Returned by `find_roots()`.
 
 Represents an isolating interval for a root.
 
-::: leanbound.result.RootInterval
+::: leancert.result.RootInterval
     options:
       show_root_heading: true
 
@@ -30,7 +30,7 @@ Represents an isolating interval for a root.
 
 Returned by `find_unique_root()`.
 
-::: leanbound.result.UniqueRootResult
+::: leancert.result.UniqueRootResult
     options:
       show_root_heading: true
 
@@ -38,7 +38,7 @@ Returned by `find_unique_root()`.
 
 Returned by `integrate()`.
 
-::: leanbound.result.IntegralResult
+::: leancert.result.IntegralResult
     options:
       show_root_heading: true
 
@@ -46,7 +46,7 @@ Returned by `integrate()`.
 
 Contains the verification certificate that can be exported to Lean.
 
-::: leanbound.result.Certificate
+::: leancert.result.Certificate
     options:
       show_root_heading: true
       members:
@@ -58,7 +58,7 @@ Contains the verification certificate that can be exported to Lean.
 
 Returned by `verify_bound()`.
 
-::: leanbound.result.VerifyResult
+::: leancert.result.VerifyResult
     options:
       show_root_heading: true
 

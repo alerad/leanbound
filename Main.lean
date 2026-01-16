@@ -1,4 +1,4 @@
-import LeanBound
+import LeanCert
 
 def main : IO Unit :=
-  IO.println "LeanBound - A Wolfram-Like, Proof-Producing Engine in Lean"
+  IO.println "LeanCert - A Wolfram-Like, Proof-Producing Engine in Lean"

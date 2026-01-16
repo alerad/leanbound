@@ -1,8 +1,8 @@
-site_name: LeanBound
-site_description: Verified numerical computation and bound certification for Lean 4.
-site_url: https://yale.github.io/leanbound
-repo_url: https://github.com/yale/leanbound
-repo_name: yale/leanbound
+site_name: LeanCert
+site_description: Certified numerical computation and bound verification for Lean 4.
+site_url: https://yale.github.io/leancert
+repo_url: https://github.com/yale/leancert
+repo_name: yale/leancert
 
 theme:
   name: material

@@ -1,6 +1,6 @@
 # Model Distillation Verification
 
-LeanBound allows you to formally verify that a compressed "Student" model behaves identically (within a tolerance ε) to a large "Teacher" model.
+LeanCert allows you to formally verify that a compressed "Student" model behaves identically (within a tolerance ε) to a large "Teacher" model.
 
 ## The Problem
 
@@ -19,9 +19,9 @@ This provides a **guarantee** that holds for all possible inputs, not just test 
 ## Usage
 
 ```lean
-import LeanBound.ML.Distillation
+import LeanCert.ML.Distillation
 
-open LeanBound.ML.Distillation
+open LeanCert.ML.Distillation
 
 -- 1. Define input domain (e.g., [0, 1]²)
 def domain := [IntervalDyadic.ofRat 0 1, IntervalDyadic.ofRat 0 1]
@@ -55,7 +55,7 @@ Difference graph approach (tight):
 1. **Define networks**: Specify Teacher and Student as `Layer` lists
 2. **Define domain**: Input intervals representing valid inputs
 3. **Set tolerance**: Maximum acceptable output difference ε
-4. **Run verification**: LeanBound propagates intervals through the difference graph
+4. **Run verification**: LeanCert propagates intervals through the difference graph
 5. **Get proof**: If successful, produces a formal Lean theorem
 
 ## Example: Pruned Classifier

@@ -1,6 +1,6 @@
 # Root Finding Algorithms
 
-LeanBound provides verified root finding with proofs of existence and uniqueness.
+LeanCert provides verified root finding with proofs of existence and uniqueness.
 
 ## Overview
 
@@ -40,9 +40,9 @@ theorem verify_sign_change (e : Expr) (hsupp : ExprSupportedCore e)
 ### Usage
 
 ```lean
-import LeanBound.Tactic.Discovery
+import LeanCert.Tactic.Discovery
 
-open LeanBound.Core
+open LeanCert.Core
 
 def I12 : IntervalRat := ⟨1, 2, by norm_num⟩
 
@@ -108,7 +108,7 @@ theorem newton_contraction_unique_root (e : Expr) (hsupp : ExprSupportedCore e)
 ### Usage
 
 ```lean
-import LeanBound.Tactic.Discovery
+import LeanCert.Tactic.Discovery
 
 -- Prove x² - 2 has exactly one root in [1, 2]
 example : ∃! x ∈ I12, Expr.eval (fun _ => x) expr_x2_minus_2 = 0 := by
@@ -213,8 +213,8 @@ This is used internally for:
 
 | File | Description |
 |------|-------------|
-| `Numerics/RootFinding/Basic.lean` | Core predicates (`signChange`, `excludesZero`) |
-| `Numerics/RootFinding/Bisection.lean` | Bisection algorithm |
-| `Numerics/RootFinding/Contraction.lean` | Newton contraction verification |
-| `Numerics/RootFinding/MVTBounds.lean` | Mean value theorem utilities |
+| `Engine/RootFinding/Basic.lean` | Core predicates (`signChange`, `excludesZero`) |
+| `Engine/RootFinding/Bisection.lean` | Bisection algorithm |
+| `Engine/RootFinding/Contraction.lean` | Newton contraction verification |
+| `Engine/RootFinding/MVTBounds.lean` | Mean value theorem utilities |
 | `Tactic/Discovery.lean` | `interval_roots`, `interval_unique_root` tactics |
