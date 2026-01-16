@@ -102,15 +102,15 @@ theorem dotProductInt_mono_nonneg
   apply List.foldl_le_foldl (List.range (min w.size hi.size))
   · -- Pointwise inequality for i ∈ List.range (min w.size hi.size)
     intro acc i hi_mem
-    apply add_le_add_left
-    -- i ∈ List.range n means i < n
+
     have hi_bound : i < min w.size hi.size := List.mem_range.mp hi_mem
     have hi_lo : i < min w.size lo.size := by rw [h_size_eq]; exact hi_bound
-    -- w[i]! * lo[i]! ≤ w[i]! * hi[i]! because w[i]! ≥ 0 and lo[i]! ≤ hi[i]!
-    exact Int.mul_le_mul_of_nonneg_left (h_lo_le_hi i hi_lo hi_bound) (h_w_nonneg i hi_lo hi_bound)
+    gcongr
+    exact h_w_nonneg i hi_lo hi_bound
+    exact h_lo_le_hi i hi_lo hi_bound
   · -- Monotonicity: (fun a => a + w[i]*lo[i]) is monotone in a
     intro i a b hab
-    exact add_le_add_right hab _
+    simp only [add_le_add_iff_right, hab]
 
 /-- Integer matrix-vector multiplication -/
 @[inline] def matVecMulInt (M : Array (Array Int)) (v : Array Int) : Array Int :=
@@ -296,9 +296,9 @@ def forwardQuantized (l : QuantizedLayer) (input : AlignedInput) : AlignedInput 
 def toIntervalArray (a : AlignedInput) (n : Nat) (hn : a.lo.size = n ∧ a.hi.size = n) :
     IntervalArray n where
   lo := Array.ofFn fun i : Fin n =>
-    (⟨a.lo[i.val]'(hn.1 ▸ i.isLt), a.exp⟩ : Dyadic)
+    (⟨a.lo[i.val]'(hn.1 ▸ i.isLt), a.exp⟩ : Core.Dyadic)
   hi := Array.ofFn fun i : Fin n =>
-    (⟨a.hi[i.val]'(hn.2 ▸ i.isLt), a.exp⟩ : Dyadic)
+    (⟨a.hi[i.val]'(hn.2 ▸ i.isLt), a.exp⟩ : Core.Dyadic)
   lo_size := Array.size_ofFn
   hi_size := Array.size_ofFn
 
@@ -331,7 +331,7 @@ theorem intVal_zero (e : Int) : intVal 0 e = 0 := by simp [intVal]
 theorem intVal_nonneg {n : Int} (hn : 0 ≤ n) (e : Int) : 0 ≤ intVal n e := by
   simp only [intVal]
   apply mul_nonneg
-  · exact Int.cast_nonneg.mpr hn
+  · exact Int.cast_nonneg hn
   · exact zpow_nonneg (by norm_num : (0 : ℝ) ≤ 2) e
 
 /-- Membership in AlignedInput: a real vector x is contained if each component
@@ -553,11 +553,11 @@ theorem forwardQuantized_sound
     apply dotProductInt_mono_nonneg
     · intro i hlo _
       have hi_bound : i < l_quant.inDim := by
-        simp only [h_wpos_idx_size, h_lo_dim] at hlo; omega
+        simp only [h_wpos_idx_size] at hlo; omega
       exact h_pos_nonneg idx i hidx hi_bound
     · intro i hlo _
       have hi_bound : i < l_quant.inDim := by
-        simp only [h_wpos_idx_size, h_lo_dim] at hlo; omega
+        simp only [h_wpos_idx_size] at hlo; omega
       exact h_bounds_valid i hi_bound
     · simp only [h_lo_hi_size]
 
@@ -565,11 +565,11 @@ theorem forwardQuantized_sound
     apply dotProductInt_mono_nonneg
     · intro i hlo _
       have hi_bound : i < l_quant.inDim := by
-        simp only [h_wneg_idx_size, h_lo_dim] at hlo; omega
+        simp only [h_wneg_idx_size] at hlo; omega
       exact h_neg_nonneg idx i hidx hi_bound
     · intro i hlo _
       have hi_bound : i < l_quant.inDim := by
-        simp only [h_wneg_idx_size, h_lo_dim] at hlo; omega
+        simp only [h_wneg_idx_size] at hlo; omega
       exact h_bounds_valid i hi_bound
     · simp only [h_lo_hi_size]
 

@@ -263,12 +263,12 @@ namespace LayerNormParams
 /-- Sum of interval vector elements -/
 def sumIntervals (v : IntervalVector) : IntervalDyadic :=
   match v with
-  | [] => IntervalDyadic.singleton (Dyadic.ofInt 0)
+  | [] => IntervalDyadic.singleton (Core.Dyadic.ofInt 0)
   | h :: t => t.foldl IntervalDyadic.add h
 
 /-- Zero interval -/
 private def zeroInterval : IntervalDyadic :=
-  IntervalDyadic.singleton (Dyadic.ofInt 0)
+  IntervalDyadic.singleton (Core.Dyadic.ofInt 0)
 
 /--
 Standard Interval LayerNorm.
@@ -399,8 +399,8 @@ theorem mem_sumIntervals {xs : List ℝ} {Is : IntervalVector}
     cases Is with
     | nil =>
       simp only [List.sum_nil, LayerNormParams.sumIntervals]
-      have h := IntervalDyadic.mem_singleton (Dyadic.ofInt 0)
-      simp only [Dyadic.toRat_ofInt, Int.cast_zero, Rat.cast_zero] at h
+      have h := IntervalDyadic.mem_singleton (Core.Dyadic.ofInt 0)
+      simp only [Core.Dyadic.toRat_ofInt, Int.cast_zero, Rat.cast_zero] at h
       exact h
     | cons => simp at hlen
   | cons x xs' =>

@@ -358,7 +358,7 @@ theorem fromExpr?_center (e : Expr) (domain : IntervalRat) (degree : ℕ)
       cases h0 : TaylorModel.fromExpr? e domain degree with
       | none => simp [TaylorModel.fromExpr?, h0] at h
       | some tm0 =>
-        simp only [TaylorModel.fromExpr?, h0, bind, pure, Option.bind_some] at h
+        simp only [TaylorModel.fromExpr?, h0, bind, Option.bind_some] at h
         unfold TaylorModel.log? at h
         split at h
         · simp only [Option.some.injEq] at h; subst h; exact ih degree tm0 h0
@@ -695,7 +695,7 @@ theorem fromExpr?_domain (e : Expr) (domain : IntervalRat) (degree : ℕ)
       cases h0 : TaylorModel.fromExpr? e domain degree with
       | none => simp [TaylorModel.fromExpr?, h0] at h
       | some tm0 =>
-        simp only [TaylorModel.fromExpr?, h0, bind, pure, Option.bind_some] at h
+        simp only [TaylorModel.fromExpr?, h0, bind, Option.bind_some] at h
         unfold TaylorModel.log? at h
         split at h
         · simp only [Option.some.injEq] at h; subst h; exact ih degree tm0 h0
@@ -843,7 +843,7 @@ theorem fromExpr_evalSet_correct (e : Expr) (domain : IntervalRat) (degree : ℕ
       cases h0 : TaylorModel.fromExpr? e domain degree with
       | none => simp [TaylorModel.fromExpr?, h0] at h
       | some tm0 =>
-        simp only [TaylorModel.fromExpr?, h0, bind, pure, Option.bind_some] at h
+        simp only [TaylorModel.fromExpr?, h0, bind, Option.bind_some] at h
         unfold TaylorModel.log? at h
         split at h
         · rename_i logTM hlog
