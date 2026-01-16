@@ -7,7 +7,7 @@ import Mathlib.Analysis.Calculus.Taylor
 import Mathlib.Analysis.SpecialFunctions.ExpDeriv
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Deriv
 import Mathlib.Analysis.SpecialFunctions.Log.Deriv
-
+import LeanBound.Core.DerivativeIntervals
 /-!
 # Generic Taylor Series Abstractions
 
@@ -661,7 +661,6 @@ theorem taylor_remainder_bound_x_lt_c {f : ℝ → ℝ} {a b c : ℝ} {m : ℕ} 
               = ((-1 : ℝ) ^ i * (-1 : ℝ) ^ i) * ((↑i.factorial : ℝ)⁻¹ * (x - c) ^ i * iteratedDeriv i f c) := by ring
       rw [h1, h_neg_sq, one_mul]
       field_simp
-      ring
     exact hgoal
   -- Now use Lagrange formula
   rw [hg_at_2cmx] at hLagrange
@@ -866,7 +865,9 @@ theorem sinh_cosh_deriv_bound {a b : ℝ} (_hab : a ≤ b) (n : ℕ) :
     constructor
     · -- sinh case: d/dx sinh = cosh
       rw [iteratedDeriv_succ']
-      have hderiv : deriv Real.sinh = Real.cosh := Real.deriv_sinh
+      have hderiv : deriv Real.sinh = Real.cosh := by
+        funext x
+        exact LeanBound.Core.DerivativeIntervals.sinh_deriv_eq x
       rw [hderiv]
       exact ih.2
     · -- cosh case: d/dx cosh = sinh
@@ -875,27 +876,21 @@ theorem sinh_cosh_deriv_bound {a b : ℝ} (_hab : a ≤ b) (n : ℕ) :
       rw [hderiv]
       exact ih.1
 
-/-- The n-th iterated derivative of log at x > 0 is (-1)^(n-1) * (n-1)! * x^(-n) for n ≥ 1. -/
-theorem iteratedDeriv_log {n : ℕ} (hn : n ≠ 0) {x : ℝ} (hx : 0 < x) :
+/- The n-th iterated derivative of log at x > 0 is (-1)^(n-1) * (n-1)! * x^(-n) for n ≥ 1. -/
+ theorem iteratedDeriv_log {n : ℕ} (hn : n ≠ 0) {x : ℝ} (hx : 0 < x) :
     iteratedDeriv n Real.log x = (-1)^(n-1) * (n-1).factorial * x^(-(n : ℤ)) := by
-  induction n generalizing x with
-  | zero => contradiction
-  | succ n ih =>
-    cases n with
-    | zero =>
+    match n with
+    | 1 =>
       -- n = 1: iteratedDeriv 1 log x = deriv log x = 1/x = x^(-1)
-      simp only [iteratedDeriv_one, Nat.zero_add, Nat.add_sub_cancel, pow_zero, Nat.factorial_zero,
-        Nat.cast_one, one_mul, zpow_neg, zpow_natCast, Nat.sub_zero, Nat.sub_self]
-      rw [Real.deriv_log']
-      -- Goal: x⁻¹ = (x ^ 1)⁻¹
-      norm_num
-    | succ n =>
+      simp only [iteratedDeriv_one, Real.deriv_log', tsub_self, pow_zero, Nat.factorial_zero,
+        Nat.cast_one, mul_one, Int.reduceNeg, zpow_neg, zpow_one, one_mul]
+    | n + 2 =>
       -- n + 2: use induction
       -- iteratedDeriv (n+2) log = deriv (iteratedDeriv (n+1) log)
       rw [iteratedDeriv_succ]
       -- By IH: iteratedDeriv (n+1) log y = (-1)^n * n! * y^(-(n+1)) for y > 0
       have h_eq : ∀ y : ℝ, 0 < y → iteratedDeriv (n + 1) Real.log y =
-          (-1 : ℝ)^n * n.factorial * y^(-(n + 1 : ℤ)) := fun y hy => ih n.succ_ne_zero hy
+          (-1 : ℝ)^n * n.factorial * y^(-(n + 1 : ℤ)) := fun y hy => iteratedDeriv_log n.succ_ne_zero hy
       have h_deriv_eq : deriv (iteratedDeriv (n + 1) Real.log) x =
           deriv (fun y => (-1 : ℝ)^n * n.factorial * y^(-(n + 1 : ℤ))) x := by
         apply Filter.EventuallyEq.deriv_eq
@@ -905,21 +900,13 @@ theorem iteratedDeriv_log {n : ℕ} (hn : n ≠ 0) {x : ℝ} (hx : 0 < x) :
       have hdiff : DifferentiableAt ℝ (fun y => y ^ (-(n + 1 : ℤ))) x := by
         apply DifferentiableAt.zpow differentiableAt_id
         left; exact hx.ne'
-      rw [deriv_const_mul _ hdiff]
-      rw [deriv_zpow (-(n + 1 : ℤ)) x]
-      -- Goal: (-1)^n * n! * (-(n+1) * x^(-(n+1)-1)) = (-1)^(n+1) * (n+1)! * x^(-(n+2))
-      have hsub1 : n + 1 + 1 - 1 = n + 1 := by omega
-      have hn2 : (-(↑n + 1) - 1 : ℤ) = -(↑n + 2) := by ring
-      simp only [hsub1, Nat.factorial_succ, Nat.cast_mul, Nat.cast_succ, Int.natCast_succ, hn2]
-      -- Need to show: (-1)^n * n! * (-(n+1) * x^(-(n+2))) = (-1)^(n+1) * (n+1)! * x^(-(n+2))
-      have hn3 : n + 1 + 1 = n + 2 := by omega
-      simp only [hn3, zpow_neg, Int.natCast_succ]
-      rw [pow_succ (-1 : ℝ) n]
-      -- The goal involves (-1)^n, factorials, and negative integer powers
-      -- Convert to a form that ring can handle
-      have hx_ne : x ≠ 0 := hx.ne'
-      have hxpow_ne : x ^ (2 + n) ≠ 0 := pow_ne_zero _ hx_ne
-      field_simp
-      ring_nf
+      rw [deriv_const_mul _ hdiff, deriv_zpow (-(n + 1 : ℤ)) x]
+      simp
+      rw [pow_succ (-1 : ℝ) n, Nat.factorial_succ]
+      push_cast
+      calc
+        (-1) ^ n * n.factorial * ((-1 + -(n : ℤ)) * x ^ (-1 + -(n : ℤ) - 1))
+        _ = (-1) ^ n * n.factorial * ((-1 + -(n : ℤ)) * x ^ (-2 + -(n : ℤ))) := by congr 3; grind
+        _ = (-1) ^ n * -1 * ((↑n + 1) * n.factorial) * x ^ (-2 + -(n : ℤ)) := by simp; ring
 
 end LeanCert.Core
