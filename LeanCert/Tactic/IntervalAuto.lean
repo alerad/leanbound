@@ -244,32 +244,54 @@ private def extractIntLit (e : Lean.Expr) : MetaM (Option ℤ) := do
 
 /-- Extract a rational from a Rat expression -/
 private def extractRatFromRat (e : Lean.Expr) : MetaM (Option ℚ) := do
-  let e ← whnf e
-  let fn := e.getAppFn
-  let args := e.getAppArgs
+  -- Try without whnf first (preserves OfNat.ofNat structure)
+  if let some q ← tryExtractRat e then
+    return some q
+  -- Then try with whnf
+  let e' ← whnf e
+  tryExtractRat e'
+where
+  tryExtractRat (e : Lean.Expr) : MetaM (Option ℚ) := do
+    let fn := e.getAppFn
+    let args := e.getAppArgs
 
-  -- Check for Rat.ofInt
-  if fn.isConstOf ``Rat.ofInt then
-    if args.size > 0 then
-      if let some i ← extractIntLit args[0]! then
-        return some (i : ℚ)
-    return none
+    -- Check for Rat.ofInt
+    if fn.isConstOf ``Rat.ofInt then
+      if args.size > 0 then
+        if let some i ← extractIntLit args[0]! then
+          return some (i : ℚ)
+      return none
 
-  -- Check for OfNat.ofNat on Rat
-  else if fn.isConstOf ``OfNat.ofNat then
-    if args.size >= 2 then
-      if let some n ← extractNatLit args[1]! then
-        return some (n : ℚ)
-    return none
+    -- Check for OfNat.ofNat on Rat
+    else if fn.isConstOf ``OfNat.ofNat then
+      if args.size >= 2 then
+        if let some n ← extractNatLit args[1]! then
+          return some (n : ℚ)
+      return none
 
-  -- Try to match Rat.mk' num den ...
-  else if fn.isConstOf ``Rat.mk' then
-    return none  -- TODO: implement if needed
+    -- Check for Nat.cast to ℚ (handles ↑1, ↑2, etc.)
+    else if fn.isConstOf ``Nat.cast || fn.isConstOf ``NatCast.natCast then
+      if args.size > 0 then
+        if let some n ← extractNatLit args.back! then
+          return some (n : ℚ)
+      return none
 
-  else return none
+    -- Check for Int.cast to ℚ
+    else if fn.isConstOf ``Int.cast || fn.isConstOf ``IntCast.intCast then
+      if args.size > 0 then
+        if let some i ← extractIntLit args.back! then
+          return some (i : ℚ)
+      return none
+
+    -- Try to match Rat.mk' num den ...
+    else if fn.isConstOf ``Rat.mk' then
+      return none  -- TODO: implement if needed
+
+    else return none
 
 /-- Try to extract a rational value from a Lean expression that represents a real number.
-    Handles: Rat.cast, OfNat.ofNat, Nat.cast, Int.cast, negations, and divisions. -/
+    Handles: Rat.cast, OfNat.ofNat, Nat.cast, Int.cast, negations, and divisions.
+    Also handles direct ℚ expressions as a fallback. -/
 partial def extractRatFromReal (e : Lean.Expr) : MetaM (Option ℚ) := do
   let e ←
     if e.isMVar then
@@ -283,9 +305,12 @@ partial def extractRatFromReal (e : Lean.Expr) : MetaM (Option ℚ) := do
   if let some q ← tryExtract e then
     return some q
   -- Then try with whnf
-  let e ← whnf e
-  let e ← instantiateMVars e
-  tryExtract e
+  let e' ← whnf e
+  let e' ← instantiateMVars e'
+  if let some q ← tryExtract e' then
+    return some q
+  -- Finally, try extracting from ℚ directly (for goals like ∀ x ∈ I, f(x) ≤ (1 : ℚ))
+  extractRatFromRat e'
 where
   tryExtract (e : Lean.Expr) : MetaM (Option ℚ) := do
     let fn := e.getAppFn

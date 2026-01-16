@@ -183,33 +183,56 @@ private def extractIntLit (e : Lean.Expr) : MetaM (Option ℤ) := do
     return none
 
 private def extractRatFromRat (e : Lean.Expr) : MetaM (Option ℚ) := do
-  let e ← whnf e
-  let fn := e.getAppFn
-  let args := e.getAppArgs
-  if fn.isConstOf ``Rat.ofInt then
-    if args.size > 0 then
-      if let some i ← extractIntLit args[0]! then
-        return some (i : ℚ)
-    return none
-  else if fn.isConstOf ``OfNat.ofNat then
-    if args.size >= 2 then
-      if let some n ← extractNatLit args[1]! then
-        return some (n : ℚ)
-    return none
-  else if fn.isConstOf ``Rat.mk' then
-    return none
-  else
-    return none
+  -- Try without whnf first (preserves OfNat.ofNat structure)
+  if let some q ← tryExtractRat e then
+    return some q
+  -- Then try with whnf
+  let e' ← whnf e
+  tryExtractRat e'
+where
+  tryExtractRat (e : Lean.Expr) : MetaM (Option ℚ) := do
+    let fn := e.getAppFn
+    let args := e.getAppArgs
+    if fn.isConstOf ``Rat.ofInt then
+      if args.size > 0 then
+        if let some i ← extractIntLit args[0]! then
+          return some (i : ℚ)
+      return none
+    else if fn.isConstOf ``OfNat.ofNat then
+      if args.size >= 2 then
+        if let some n ← extractNatLit args[1]! then
+          return some (n : ℚ)
+      return none
+    -- Check for Nat.cast to ℚ (handles ↑1, ↑2, etc.)
+    else if fn.isConstOf ``Nat.cast || fn.isConstOf ``NatCast.natCast then
+      if args.size > 0 then
+        if let some n ← extractNatLit args.back! then
+          return some (n : ℚ)
+      return none
+    -- Check for Int.cast to ℚ
+    else if fn.isConstOf ``Int.cast || fn.isConstOf ``IntCast.intCast then
+      if args.size > 0 then
+        if let some i ← extractIntLit args.back! then
+          return some (i : ℚ)
+      return none
+    else if fn.isConstOf ``Rat.mk' then
+      return none
+    else
+      return none
 
 /-- Try to extract a rational value from a Lean expression that represents a real number.
-    Handles: Rat.cast, OfNat.ofNat, Nat.cast, Int.cast, negations, and divisions. -/
+    Handles: Rat.cast, OfNat.ofNat, Nat.cast, Int.cast, negations, and divisions.
+    Also handles direct ℚ expressions as a fallback. -/
 partial def extractRatFromReal (e : Lean.Expr) : MetaM (Option ℚ) := do
   -- First try without whnf (preserves structure like OfNat.ofNat)
   if let some q ← tryExtract e then
     return some q
   -- Then try with whnf
-  let e ← whnf e
-  tryExtract e
+  let e' ← whnf e
+  if let some q ← tryExtract e' then
+    return some q
+  -- Finally, try extracting from ℚ directly (for goals like ∀ x ∈ I, f(x) ≤ (1 : ℚ))
+  extractRatFromRat e'
 where
   tryExtract (e : Lean.Expr) : MetaM (Option ℚ) := do
     let fn := e.getAppFn
