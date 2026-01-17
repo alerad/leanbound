@@ -186,7 +186,7 @@ example : ∀ x ∈ I01, Expr.eval (fun _ => x)
 For interactive exploration in the editor:
 
 ```lean
-import LeanCert.Discovery
+import LeanCert.Discovery.Commands
 
 -- Find the global minimum
 #find_min (fun x => x^2 + Real.sin x) on [-2, 2]

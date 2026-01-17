@@ -218,8 +218,14 @@ Proves bounds on definite integrals via verified Riemann sums.
 ```lean
 import LeanCert.Tactic.Discovery
 
--- Prove integral bounds
-example : ∫ x in (0:ℝ)..1, x^2 ≤ 0.34 := by
+open LeanCert.Core LeanCert.Validity.Integration
+
+def I01 : IntervalRat := ⟨0, 1, by norm_num⟩
+
+-- Prove integral is contained in computed interval
+example : ∫ x in (I01.lo : ℝ)..(I01.hi : ℝ),
+    Expr.eval (fun _ => x) (Expr.mul (Expr.var 0) (Expr.var 0)) ∈
+    integrateInterval1Core (Expr.mul (Expr.var 0) (Expr.var 0)) I01 {} := by
   interval_integrate
 ```
 
@@ -227,6 +233,8 @@ example : ∫ x in (0:ℝ)..1, x^2 ≤ 0.34 := by
 1. Partitions interval into subintervals
 2. Computes interval bounds on each partition
 3. Sums (width × bound) for rigorous over/under-approximation
+
+**Note:** The tactic proves membership in the computed interval, not a direct inequality.
 
 ---
 
