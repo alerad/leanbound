@@ -259,7 +259,7 @@ theorem sqrtRatLower_le_sqrt {q : ℚ} (hq : 0 ≤ q) : (sqrtRatLower q : ℝ) �
   by_cases hq0 : q ≤ 0
   · -- q = 0
     have heq : q = 0 := le_antisymm hq0 hq
-    simp only [heq, le_refl, ↓reduceIte, Nat.cast_zero, zero_div, Rat.cast_zero, Real.sqrt_zero]
+    simp only [heq, le_refl, ↓reduceIte, Rat.cast_zero, Real.sqrt_zero]
   · -- q > 0
     push_neg at hq0
     simp only [not_le.mpr hq0, ↓reduceIte]
@@ -293,7 +293,6 @@ theorem sqrtRatLower_le_sqrt {q : ℚ} (hq : 0 ≤ q) : (sqrtRatLower q : ℝ) �
     calc (intSqrtNat (q.num.natAbs * q.den) : ℝ) * Real.sqrt q.den
         ≤ Real.sqrt (q.num.natAbs * q.den) * Real.sqrt q.den := by
             apply mul_le_mul_of_nonneg_right hs_le (le_of_lt hsqrt_den_pos)
-      _ = Real.sqrt ((q.num.natAbs : ℝ) * q.den) * Real.sqrt q.den := by simp only [Nat.cast_mul]
       _ = Real.sqrt (q.num.natAbs) * Real.sqrt q.den * Real.sqrt q.den := by
             rw [Real.sqrt_mul hnum_real_nn]
       _ = Real.sqrt (q.num.natAbs) * (Real.sqrt q.den * Real.sqrt q.den) := by ring
@@ -305,7 +304,7 @@ theorem sqrt_le_sqrtRatUpper {q : ℚ} (hq : 0 ≤ q) : Real.sqrt q ≤ (sqrtRat
   by_cases hq0 : q ≤ 0
   · -- q = 0
     have heq : q = 0 := le_antisymm hq0 hq
-    simp only [heq, le_refl, ↓reduceIte, Nat.cast_zero, zero_div, Rat.cast_zero, Real.sqrt_zero]
+    simp only [heq, le_refl, ↓reduceIte, Rat.cast_zero, Real.sqrt_zero]
   · -- q > 0
     push_neg at hq0
     simp only [not_le.mpr hq0, ↓reduceIte]
@@ -375,7 +374,7 @@ theorem sqrt_le_sqrtRatUpper {q : ℚ} (hq : 0 ≤ q) : Real.sqrt q ≤ (sqrtRat
     The lower bound is 0 (always sound for sqrt).
     The upper bound uses max(hi, 1) which satisfies sqrt(x) ≤ max(x, 1) for x ≥ 0. -/
 def sqrtInterval (I : IntervalRat) : IntervalRat :=
-  ⟨0, max I.hi 1, by simp [le_max_iff]⟩
+  ⟨0, max I.hi 1, le_sup_of_le_right rfl⟩
 
 /-- Improved square root interval with tight lower bounds.
     For a non-negative interval [lo, hi] with lo ≥ 0:
@@ -397,7 +396,7 @@ def sqrtIntervalTight (I : IntervalRat) : IntervalRat :=
        have h4 : (sqrtRatLower I.lo : ℝ) ≤ (sqrtRatUpper I.hi : ℝ) := le_trans h1 (le_trans h3 h2)
        exact_mod_cast h4⟩
   else
-    ⟨0, max (sqrtRatUpper I.hi) 1, by simp [le_max_iff]⟩
+    ⟨0, max (sqrtRatUpper I.hi) 1, le_sup_of_le_right rfl⟩
 
 /-- Soundness of sqrtRatLowerPrec: sqrtRatLowerPrec q k ≤ Real.sqrt q for q ≥ 0 -/
 theorem sqrtRatLowerPrec_le_sqrt {q : ℚ} (hq : 0 ≤ q) (k : Nat) :
@@ -578,7 +577,7 @@ def sqrtIntervalTightPrec (I : IntervalRat) : IntervalRat :=
        have h4 : (sqrtRatLowerPrec I.lo : ℝ) ≤ (sqrtRatUpperPrec I.hi : ℝ) := le_trans h1 (le_trans h3 h2)
        exact_mod_cast h4⟩
   else
-    ⟨0, max (sqrtRatUpperPrec I.hi) 1, by simp [le_max_iff]⟩
+    ⟨0, max (sqrtRatUpperPrec I.hi) 1, le_sup_of_le_right rfl⟩
 
 /-- Membership theorem for sqrtIntervalTightPrec -/
 theorem mem_sqrtIntervalTightPrec' {x : ℝ} {I : IntervalRat} (hx : x ∈ I) :

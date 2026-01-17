@@ -230,7 +230,7 @@ private theorem linearSum_zipWithPad_add (l1 l2 : List ℚ) (eps : NoiseAssignme
       cases eps with
       | nil => simp [zipWithPad, List.zipWith]
       | cons e es =>
-        simp only [zipWithPad, List.zipWith, List.sum_cons, List.zipWith_nil_left]
+        simp only [zipWithPad, List.zipWith, List.sum_cons]
         rw [ih2 es]
         simp [List.zipWith]
   | cons h1 t1 ih1 =>
@@ -241,9 +241,9 @@ private theorem linearSum_zipWithPad_add (l1 l2 : List ℚ) (eps : NoiseAssignme
       | cons e es =>
         simp only [zipWithPad, List.zipWith, List.sum_cons]
         have := ih1 [] es
-        simp only [zipWithPad, List.zipWith, List.sum_nil, add_zero] at this
+        simp only [List.zipWith, List.sum_nil, add_zero] at this
         rw [this]
-        simp [List.zipWith]
+        simp only [add_zero, List.sum_nil]
     | cons h2 t2 =>
       cases eps with
       | nil => simp [zipWithPad, List.zipWith]
@@ -324,7 +324,7 @@ theorem mem_add {a b : AffineForm} {eps : NoiseAssignment} {va vb : ℝ}
     have h1 : |erra| ≤ (a.r : ℝ) := herra_bound
     have h2 : |errb| ≤ (b.r : ℝ) := herrb_bound
     have h3 : ((add a b).r : ℝ) = a.r + b.r := by simp only [add, Rat.cast_add]
-    calc |erra + errb| ≤ |erra| + |errb| := abs_add erra errb
+    calc |erra + errb| ≤ |erra| + |errb| := abs_add_le erra errb
       _ ≤ (a.r : ℝ) + (b.r : ℝ) := by linarith
       _ = ((add a b).r : ℝ) := by rw [h3]
   · -- va + vb = evalLinear (add a b) eps + (erra + errb)
@@ -384,7 +384,7 @@ private theorem linearSum_bounded_by_sumAbs (coeffs : List ℚ) (eps : NoiseAssi
     cases eps with
     | nil => simp at hlen
     | cons e es =>
-      simp only [List.length_cons, Nat.succ_eq_add_one, add_left_inj] at hlen
+      simp only [List.length_cons, add_left_inj] at hlen
       have hvalid_e : -1 ≤ e ∧ e ≤ 1 := hvalid e (by simp)
       have hvalid_es : validNoise es := fun x hx => hvalid x (List.mem_cons_of_mem e hx)
       simp only [List.zipWith, List.sum_cons]
@@ -401,7 +401,7 @@ private theorem linearSum_bounded_by_sumAbs (coeffs : List ℚ) (eps : NoiseAssi
         ring
       have h_abs_cast : |(↑c : ℝ)| = ((|c| : ℚ) : ℝ) := (Rat.cast_abs c).symm
       calc |↑c * e + (List.zipWith (fun c e => ↑c * e) cs es).sum|
-          ≤ |↑c * e| + |(List.zipWith (fun c e => ↑c * e) cs es).sum| := abs_add _ _
+          ≤ |↑c * e| + |(List.zipWith (fun c e => ↑c * e) cs es).sum| := abs_add_le _ _
         _ ≤ |(↑c : ℝ)| + (sumAbs cs : ℝ) := by linarith
         _ = ((|c| : ℚ) : ℝ) + (sumAbs cs : ℝ) := by rw [h_abs_cast]
         _ = (sumAbs (c :: cs) : ℝ) := by rw [h_sumAbs_cons, h_abs_cast]
@@ -423,7 +423,7 @@ private theorem deviation_from_center {af : AffineForm} {eps : NoiseAssignment} 
   have hlin := linearSum_bounded_by_sumAbs af.coeffs eps hvalid hlen
   simp only [deviationBound]
   calc |linearSum af.coeffs eps + err|
-      ≤ |linearSum af.coeffs eps| + |err| := abs_add _ _
+      ≤ |linearSum af.coeffs eps| + |err| := abs_add_le _ _
     _ ≤ (sumAbs af.coeffs : ℝ) + (af.r : ℝ) := by linarith
     _ = ((af.r + sumAbs af.coeffs : ℚ) : ℝ) := by push_cast; ring
 
@@ -440,7 +440,7 @@ private theorem linearSum_zipWithPad_scale (cx cy : ℚ) (l1 l2 : List ℚ) (eps
       cases eps with
       | nil => simp [zipWithPad, List.zipWith]
       | cons e es =>
-        simp only [zipWithPad, List.zipWith, List.sum_cons, List.zipWith_nil_left, List.sum_nil, mul_zero, add_zero]
+        simp only [zipWithPad, List.zipWith, List.sum_cons, List.sum_nil, mul_zero, add_zero]
         rw [ih2 es]
         simp only [List.zipWith_nil_left, List.sum_nil, mul_zero, add_zero]
         push_cast
@@ -451,9 +451,9 @@ private theorem linearSum_zipWithPad_scale (cx cy : ℚ) (l1 l2 : List ℚ) (eps
       cases eps with
       | nil => simp [zipWithPad, List.zipWith]
       | cons e es =>
-        simp only [zipWithPad, List.zipWith, List.sum_cons, List.zipWith_nil_left, List.sum_nil, mul_zero, add_zero]
+        simp only [zipWithPad, List.zipWith, List.sum_cons, List.sum_nil, mul_zero]
         have := ih1 [] es
-        simp only [zipWithPad, List.zipWith, List.sum_nil, mul_zero, add_zero] at this
+        simp only [List.zipWith, List.sum_nil, mul_zero] at this
         rw [this]
         push_cast
         ring
@@ -494,7 +494,7 @@ private theorem linearSum_bounded_weak (coeffs : List ℚ) (eps : NoiseAssignmen
         rw [(Rat.cast_abs c).symm]
         ring
       calc |↑c * e + (List.zipWith (fun c e => ↑c * e) cs es).sum|
-          ≤ |↑c * e| + |(List.zipWith (fun c e => ↑c * e) cs es).sum| := abs_add _ _
+          ≤ |↑c * e| + |(List.zipWith (fun c e => ↑c * e) cs es).sum| := abs_add_le _ _
         _ ≤ |(↑c : ℝ)| + (sumAbs cs : ℝ) := by linarith
         _ = (sumAbs (c :: cs) : ℝ) := by rw [← h_sumAbs_cons]
 
@@ -531,13 +531,13 @@ theorem mem_mul {a b : AffineForm} {eps : NoiseAssignment} {va vb : ℝ}
 
     have hDa_bound : |Da| ≤ (deviationBound a : ℝ) := by
       calc |Da| = |La + ea| := rfl
-        _ ≤ |La| + |ea| := abs_add _ _
+        _ ≤ |La| + |ea| := abs_add_le _ _
         _ ≤ (sumAbs a.coeffs : ℝ) + (a.r : ℝ) := by linarith
         _ = (deviationBound a : ℝ) := by simp [deviationBound]; ring
 
     have hDb_bound : |Db| ≤ (deviationBound b : ℝ) := by
       calc |Db| = |Lb + eb| := rfl
-        _ ≤ |Lb| + |eb| := abs_add _ _
+        _ ≤ |Lb| + |eb| := abs_add_le _ _
         _ ≤ (sumAbs b.coeffs : ℝ) + (b.r : ℝ) := by linarith
         _ = (deviationBound b : ℝ) := by simp [deviationBound]; ring
 
@@ -552,8 +552,8 @@ theorem mem_mul {a b : AffineForm} {eps : NoiseAssignment} {va vb : ℝ}
                             (deviationBound a : ℝ) * (deviationBound b : ℝ) := by
       calc |err_new|
           = |(a.c0 : ℝ) * eb + (b.c0 : ℝ) * ea + Da * Db| := rfl
-        _ ≤ |(a.c0 : ℝ) * eb + (b.c0 : ℝ) * ea| + |Da * Db| := abs_add _ _
-        _ ≤ |(a.c0 : ℝ) * eb| + |(b.c0 : ℝ) * ea| + |Da * Db| := by linarith [abs_add ((a.c0 : ℝ) * eb) ((b.c0 : ℝ) * ea)]
+        _ ≤ |(a.c0 : ℝ) * eb + (b.c0 : ℝ) * ea| + |Da * Db| := abs_add_le _ _
+        _ ≤ |(a.c0 : ℝ) * eb| + |(b.c0 : ℝ) * ea| + |Da * Db| := by linarith [abs_add_le ((a.c0 : ℝ) * eb) ((b.c0 : ℝ) * ea)]
         _ ≤ |(a.c0 : ℝ)| * (b.r : ℝ) + |(b.c0 : ℝ)| * (a.r : ℝ) + (deviationBound a : ℝ) * (deviationBound b : ℝ) := by linarith
     -- Cast to match the goal
     calc |err_new|
@@ -602,7 +602,7 @@ theorem mem_sq {a : AffineForm} {eps : NoiseAssignment} {v : ℝ}
 
     have hDa_bound : |Da| ≤ (deviationBound a : ℝ) := by
       calc |Da| = |La + ea| := rfl
-        _ ≤ |La| + |ea| := abs_add _ _
+        _ ≤ |La| + |ea| := abs_add_le _ _
         _ ≤ (sumAbs a.coeffs : ℝ) + (a.r : ℝ) := by linarith
         _ = (deviationBound a : ℝ) := by simp [deviationBound]; ring
 
@@ -615,7 +615,7 @@ theorem mem_sq {a : AffineForm} {eps : NoiseAssignment} {v : ℝ}
                             (deviationBound a : ℝ) * (deviationBound a : ℝ) := by
       calc |err_new|
           = |2 * (a.c0 : ℝ) * ea + Da * Da| := rfl
-        _ ≤ |2 * (a.c0 : ℝ) * ea| + |Da * Da| := abs_add _ _
+        _ ≤ |2 * (a.c0 : ℝ) * ea| + |Da * Da| := abs_add_le _ _
         _ ≤ 2 * |(a.c0 : ℝ)| * (a.r : ℝ) + (deviationBound a : ℝ) * (deviationBound a : ℝ) := by linarith
 
     calc |err_new|

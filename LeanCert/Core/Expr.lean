@@ -81,7 +81,7 @@ theorem Real.atanh_strictMonoOn : StrictMonoOn Real.atanh (Set.Ioo (-1) 1) := by
   have hy2 : 0 < 1 - y := by linarith [hy.2]
   have hargx : 0 < (1 + x) / (1 - x) := div_pos hx1 hx2
   have hargy : 0 < (1 + y) / (1 - y) := div_pos hy1 hy2
-  rw [mul_lt_mul_left (by norm_num : (0 : ℝ) < 1 / 2)]
+  gcongr 1
   rw [Real.log_lt_log_iff hargx hargy]
   -- Need (1+x)/(1-x) < (1+y)/(1-y) when x < y
   rw [div_lt_div_iff₀ hx2 hy2]

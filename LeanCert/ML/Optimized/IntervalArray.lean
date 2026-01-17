@@ -43,9 +43,9 @@ open LeanCert.Core
     Stores lower and upper bounds in separate contiguous arrays for cache efficiency. -/
 structure IntervalArray (n : Nat) where
   /-- Lower bounds array -/
-  lo : Array Dyadic
+  lo : Array Core.Dyadic
   /-- Upper bounds array -/
-  hi : Array Dyadic
+  hi : Array Core.Dyadic
   /-- Size invariant for lower bounds -/
   lo_size : lo.size = n
   /-- Size invariant for upper bounds -/
@@ -57,11 +57,11 @@ namespace IntervalArray
 variable {n : Nat}
 
 /-- Access lower bound at index i -/
-@[inline] def getLo (v : IntervalArray n) (i : Fin n) : Dyadic :=
+@[inline] def getLo (v : IntervalArray n) (i : Fin n) : Core.Dyadic :=
   v.lo[i.val]'(by rw [v.lo_size]; exact i.isLt)
 
 /-- Access upper bound at index i -/
-@[inline] def getHi (v : IntervalArray n) (i : Fin n) : Dyadic :=
+@[inline] def getHi (v : IntervalArray n) (i : Fin n) : Core.Dyadic :=
   v.hi[i.val]'(by rw [v.hi_size]; exact i.isLt)
 
 /-- Get the i-th interval as an IntervalDyadic -/
@@ -86,7 +86,7 @@ def ofFn (f : Fin n → IntervalDyadic) : IntervalArray n where
   hi_size := Array.size_ofFn
 
 /-- Create from separate lo/hi arrays (with proof of validity) -/
-def mk' (lo hi : Array Dyadic) (hlo : lo.size = n) (hhi : hi.size = n) : IntervalArray n :=
+def mk' (lo hi : Array Core.Dyadic) (hlo : lo.size = n) (hhi : hi.size = n) : IntervalArray n :=
   ⟨lo, hi, hlo, hhi⟩
 
 /-- Empty interval array (for n = 0) -/
@@ -123,8 +123,8 @@ def sub (a b : IntervalArray n) : IntervalArray n :=
 
 /-- Apply ReLU (max(0, x)) to each interval component -/
 def relu (a : IntervalArray n) : IntervalArray n where
-  lo := Array.ofFn fun i : Fin n => (Dyadic.ofInt 0).max (a.getLo i)
-  hi := Array.ofFn fun i : Fin n => (Dyadic.ofInt 0).max (a.getHi i)
+  lo := Array.ofFn fun i : Fin n => (Core.Dyadic.ofInt 0).max (a.getLo i)
+  hi := Array.ofFn fun i : Fin n => (Core.Dyadic.ofInt 0).max (a.getHi i)
   lo_size := Array.size_ofFn
   hi_size := Array.size_ofFn
 
@@ -137,7 +137,7 @@ theorem mem_add {x y : Fin n → ℝ} {a b : IntervalArray n}
   show IntervalArray.mem (add a b) (fun i => x i + y i)
   unfold mem
   intro i
-  simp only [add, getLo, getHi, Array.getElem_ofFn, Fin.is_lt, Dyadic.toRat_add, Rat.cast_add]
+  simp only [add, getLo, getHi, Array.getElem_ofFn, Core.Dyadic.toRat_add, Rat.cast_add]
   have hx' : IntervalArray.mem a x := hx
   have hy' : IntervalArray.mem b y := hy
   have hxlo := (hx' i).1
@@ -153,7 +153,7 @@ theorem mem_neg {x : Fin n → ℝ} {a : IntervalArray n} (hx : x ∈ a) :
   show IntervalArray.mem (neg a) (fun i => -x i)
   unfold mem
   intro i
-  simp only [neg, getLo, getHi, Array.getElem_ofFn, Fin.is_lt, Dyadic.toRat_neg, Rat.cast_neg]
+  simp only [neg, getLo, getHi, Array.getElem_ofFn, Core.Dyadic.toRat_neg, Rat.cast_neg]
   have hx' : IntervalArray.mem a x := hx
   have ⟨hlo, hhi⟩ := hx' i
   simp only [getLo, getHi] at hlo hhi
@@ -172,8 +172,8 @@ theorem mem_relu {x : Fin n → ℝ} {a : IntervalArray n} (hx : x ∈ a) :
   show IntervalArray.mem (relu a) (fun i => max 0 (x i))
   unfold mem
   intro i
-  simp only [relu, getLo, getHi, Array.getElem_ofFn, Fin.is_lt,
-             Dyadic.max_toRat, Dyadic.toRat_ofInt, Int.cast_zero, Rat.cast_zero]
+  simp only [relu, getLo, getHi, Array.getElem_ofFn,
+             Dyadic.max_toRat, Dyadic.toRat_ofInt, Int.cast_zero]
   have hx' : IntervalArray.mem a x := hx
   have ⟨hlo, hhi⟩ := hx' i
   simp only [getLo, getHi] at hlo hhi

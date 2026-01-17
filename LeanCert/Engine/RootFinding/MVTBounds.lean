@@ -232,7 +232,7 @@ lemma newton_negative_increasing_contradicts_contraction
     calc (fc.lo : ℝ) / dI.lo < (-((dI.lo : ℝ) * hw)) / dI.lo := by {
       apply div_lt_div_of_pos_right hfc_lo_bound hpos
     }
-    _ = -(hw : ℝ) := by field_simp; ring
+    _ = -(hw : ℝ) := by field_simp;
   linarith
 
 /-! ### Quotient bound lemmas -/
@@ -418,7 +418,7 @@ lemma generic_contraction_absurd_lo
   have hQ_lo_lt_neg_hw : (Q.lo : ℝ) < -hw := by
     calc (Q.lo : ℝ) ≤ fc.lo / dI.lo := by exact_mod_cast hQ_lo_le
       _ < (-(dI.lo * hw)) / dI.lo := by exact div_lt_div_of_pos_right hfc_lo_lt hdI_lo_pos_real
-      _ = -hw := by field_simp; ring
+      _ = -hw := by field_simp;
   have hQ_lo_gt_neg_hw_real : (Q.lo : ℝ) > -hw := by exact_mod_cast hQ_lo_gt_neg_hw
   linarith
 

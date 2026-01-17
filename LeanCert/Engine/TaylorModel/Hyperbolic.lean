@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: LeanCert Contributors
 -/
 import LeanCert.Engine.TaylorModel.Core
-import Mathlib.Data.Complex.ExponentialBounds
+import Mathlib.Analysis.Complex.ExponentialBounds
 
 /-!
 # Taylor Models - Hyperbolic Functions
@@ -474,11 +474,12 @@ theorem atanh_series_remainder_bound {z : ℝ} (hz : |z| < 1) (n : ℕ) :
               have h_le : 2 * k + 1 ≤ n := by omega
               unfold atanhTaylorCoeffs
               have h_div : (2 * k + 1 - 1) / 2 = k := by omega
-              simp only [h_le, ite_true, h_odd, Nat.add_sub_cancel, h_div]
+              simp only [h_le, ite_true, h_odd, Nat.add_sub_cancel]
               push_cast
               have h_ne : (2 * (k : ℝ) + 1) ≠ 0 := by positivity
               simp only [term]
               field_simp
+              grind
     -- i_inj: injective
     case i_inj => intro k₁ _ k₂ _ h; omega
     -- i_surj: surjective

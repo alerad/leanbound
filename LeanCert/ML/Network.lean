@@ -111,14 +111,14 @@ theorem mem_forwardInterval {l : Layer} {xs : List ℝ} {Is : IntervalVector}
   have hlen_eq : (realMatVecMul l.weights xs).length = (matVecMul l.weights Is prec).length := by
     simp [realMatVecMul, matVecMul]
   have hblen_eq : l.bias.length = (matVecMul l.weights Is prec).length := by
-    simp [matVecMul, outputDim]; exact hwf.2
+    simp [matVecMul]; exact hwf.2
   have hbias := mem_addBias hlen_eq hblen_eq (fun j hj => by
     have hj' : j < l.weights.length := by simp [matVecMul] at hj; exact hj
     exact hlinear j hj') prec hprec
   -- Apply ReLU
   simp only [List.getElem_map]
   have hi_out : i < l.outputDim := Nat.lt_of_lt_of_le hi (Nat.min_le_left _ _)
-  have hi_int : i < (matVecMul l.weights Is prec).length := by simp [matVecMul, outputDim]; exact hi_out
+  have hi_int : i < (matVecMul l.weights Is prec).length := by simp [matVecMul]; exact hi_out
   exact mem_relu (hbias i hi_int)
 
 end Layer

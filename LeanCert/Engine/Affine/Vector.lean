@@ -293,7 +293,7 @@ private theorem mem_foldl_add {acc : AffineForm} {acc_r : ℝ}
     | nil => simp at hlen
     | cons h_r t_r =>
       simp only [List.foldl_cons, List.sum_cons]
-      simp only [List.length_cons, Nat.succ_eq_add_one, add_left_inj] at hlen
+      simp only [List.length_cons, add_left_inj] at hlen
       -- Apply IH with acc' = add acc h, acc_r' = acc_r + h_r
       have hmem_h : AffineForm.mem_affine h eps h_r := by
         have := hmem 0 (by simp) (by simp)
@@ -327,8 +327,7 @@ theorem mem_mean {v_real : List ℝ} {v : AffineVector} {eps : AffineForm.NoiseA
     (hmem : mem v_real v eps)
     (hne : ¬v.isEmpty) :
     AffineForm.mem_affine (mean v) eps (v_real.sum / v_real.length) := by
-  simp only [mean]
-  simp only [hne, ↓reduceIte]
+  simp only [mean, hne, Bool.false_eq_true, ↓reduceIte, one_div]
   -- mean v = scale (1/v.length) (sum v)
   -- By mem_sum, sum v represents v_real.sum
   have hsum := mem_sum hvalid hmem
@@ -336,15 +335,15 @@ theorem mem_mean {v_real : List ℝ} {v : AffineVector} {eps : AffineForm.NoiseA
   have hscale := mem_scale (1 / v.length) hsum
   -- (1/v.length) * v_real.sum = v_real.sum / v_real.length (when lengths equal)
   have hlen := hmem.1
-  convert hscale using 1
-  -- Need: v_real.sum / v_real.length = (1/v.length) * v_real.sum
   have hne' : v.length ≠ 0 := by
     intro h
     have : v.isEmpty := List.isEmpty_iff.mpr (List.length_eq_zero_iff.mp h)
     exact hne this
-  -- Need: v_real.sum / v_real.length = (1/v.length) * v_real.sum
   have hne_real : (v.length : ℝ) ≠ 0 := by exact_mod_cast hne'
+  convert hscale using 1
+  . simp
   rw [hlen]
+  push_cast
   field_simp [hne_real]
 
 /-- Centered is sound: x - mean(x) -/
@@ -431,7 +430,7 @@ theorem mem_variance {v_real : List ℝ} {v : AffineVector} {eps : AffineForm.No
   -- The types match exactly, just need to align v_real.length with v.length
   have hlen : v_real.length = v.length := hmem.1
   -- Rewrite v.length -> v_real.length in hmean
-  simp only [List.length_map, ← hlen] at hmean
+  simp only [List.length_map] at hmean
   exact hmean
 
 /-- Helper theorem for layerNorm output element -/
@@ -504,7 +503,7 @@ private theorem length_do_pure_rat_real (xs : List ℚ) :
   | nil => rfl
   | cons x xs ih =>
     -- Goal: ((x :: xs).flatMap (fun a => [↑a])).length = (x :: xs).length
-    simp only [List.flatMap_cons, List.singleton_append, List.length_cons]
+    simp only [List.length_cons]
     exact congrArg Nat.succ ih
 
 /-- Helper: element access in coerced list equals coerced element. -/
@@ -526,7 +525,7 @@ private theorem getElem_do_pure_rat_real (xs : List ℚ) (i : Nat) (hi : i < xs.
       -- LHS: (do let a ← x :: xs; pure ↑a)[j+1] = (↑x :: (do let a ← xs; pure ↑a))[j+1]
       --    = (do let a ← xs; pure ↑a)[j]
       -- RHS: (x :: xs)[j+1] = xs[j]
-      simp only [List.flatMap_cons, List.singleton_append, List.getElem_cons_succ]
+      simp only [List.getElem_cons_succ]
       exact ih j hi hi'_j
 
 /-- Helper: getElem result is independent of the proof of bounds. -/
@@ -621,7 +620,7 @@ theorem mem_layerNorm {v_real : List ℝ} {v : AffineVector}
   -- Helper: the length equality
   have hlen_v : v_real.length = v.length := hmem.1
 
-  simp only [mem, layerNorm, centered]
+  simp only [mem, centered]
 
   constructor
   · -- Length equality for zipWith3

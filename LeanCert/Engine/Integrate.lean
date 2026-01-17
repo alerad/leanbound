@@ -235,19 +235,16 @@ theorem partitionPoints_n (I : IntervalRat) (n : ℕ) (hn : 0 < n) :
   simp only [partitionPoints]
   have hn' : (n : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr (Nat.pos_iff_ne_zero.mp hn)
   field_simp
+  grind only
 
 /-- The partition points are monotone -/
 theorem partitionPoints_mono (I : IntervalRat) (n : ℕ) (_hn : 0 < n) (i j : ℕ)
     (hij : i ≤ j) (_hjn : j ≤ n) :
     partitionPoints I n i ≤ partitionPoints I n j := by
   simp only [partitionPoints]
-  apply add_le_add_left
-  apply div_le_div_of_nonneg_right
-  · apply mul_le_mul_of_nonneg_left
-    · exact_mod_cast hij
-    · have : (I.lo : ℝ) ≤ I.hi := by exact_mod_cast I.le
-      linarith
-  · exact Nat.cast_nonneg n
+  gcongr
+  have : (I.lo : ℝ) ≤ I.hi := by exact_mod_cast I.le
+  linarith
 
 /-- The i-th subinterval of the uniform partition -/
 def partitionInterval (I : IntervalRat) (n : ℕ) (hn : 0 < n) (k : ℕ) (hk : k < n) : IntervalRat :=
@@ -257,13 +254,13 @@ def partitionInterval (I : IntervalRat) (n : ℕ) (hn : 0 < n) (k : ℕ) (hk : k
 theorem partitionInterval_lo (I : IntervalRat) (n : ℕ) (hn : 0 < n) (k : ℕ) (hk : k < n) :
     (partitionInterval I n hn k hk).lo = I.lo + (I.hi - I.lo) / n * k := by
   simp only [partitionInterval, uniformPartition, List.get_ofFn]
-  simp only [Fin.coe_cast]
+  grind only [= Fin.val_cast]
 
 /-- The hi of the k-th partition interval -/
 theorem partitionInterval_hi (I : IntervalRat) (n : ℕ) (hn : 0 < n) (k : ℕ) (hk : k < n) :
     (partitionInterval I n hn k hk).hi = I.lo + (I.hi - I.lo) / n * (k + 1) := by
   simp only [partitionInterval, uniformPartition, List.get_ofFn]
-  simp only [Fin.coe_cast]
+  simp only [Fin.val_cast]
 
 /-- Partition points match partition interval bounds (real version) -/
 theorem partitionPoints_eq_lo (I : IntervalRat) (n : ℕ) (hn : 0 < n) (k : ℕ) (hk : k < n) :
@@ -319,10 +316,8 @@ theorem intervalIntegrable_on_partition (e : Expr) (I : IntervalRat) (n : ℕ) (
            have hkp1_le : (k : ℝ) + 1 ≤ n := by exact_mod_cast hi_bound
            calc (I.lo : ℝ) + ((I.hi : ℝ) - I.lo) / n * ((k : ℕ) + (1 : ℕ))
                ≤ I.lo + (I.hi - I.lo) / n * n := by
-                   apply add_le_add_left
-                   apply mul_le_mul_of_nonneg_left _ hwidth_nn
-                   convert hkp1_le using 1
-                   simp only [Nat.cast_one]
+                   gcongr
+                   grind only
              _ = I.lo + (I.hi - I.lo) := by
                    have hn' : (n : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr (Nat.pos_iff_ne_zero.mp hn)
                    field_simp

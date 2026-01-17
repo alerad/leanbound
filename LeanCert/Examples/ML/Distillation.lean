@@ -122,14 +122,14 @@ theorem distillation_certificate (x y : ℝ)
     ∀ i (hi_t : i < (SequentialNet.forwardInterval teacherNet inputDomain (-53)).length)
         (hi_s : i < (SequentialNet.forwardInterval studentNet inputDomain (-53)).length),
       |(SequentialNet.forwardReal teacherNet [x, y])[i]'(by
-          simp only [SequentialNet.forwardReal, SequentialNet.forwardInterval]
+          simp only [SequentialNet.forwardReal]
           simp only [SequentialNet.forwardInterval] at hi_t hi_s
           have h := SequentialNet.forwardLength_aux teacherNet.layers [x, y] inputDomain
               (by rfl) teacherNet_wf (-53)
           have hlen : (List.foldl (fun acc l => l.forwardInterval acc (-53)) inputDomain teacherNet.layers).length = 1 := by native_decide
           omega) -
        (SequentialNet.forwardReal studentNet [x, y])[i]'(by
-          simp only [SequentialNet.forwardReal, SequentialNet.forwardInterval]
+          simp only [SequentialNet.forwardReal]
           simp only [SequentialNet.forwardInterval] at hi_t hi_s
           have h := SequentialNet.forwardLength_aux studentNet.layers [x, y] inputDomain
               (by rfl) studentNet_wf (-53)

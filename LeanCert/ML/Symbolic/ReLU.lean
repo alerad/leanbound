@@ -68,8 +68,10 @@ theorem crossingUpperBound_eval (l u : ℚ) (x : ℝ) (h_ne : u - l ≠ 0) :
     (crossingUpperBound l u).eval x = (u : ℝ) / ((u : ℝ) - l) * (x - l) := by
   simp only [crossingUpperBound, LinearBound.eval]
   have h_ne' : (u : ℝ) - l ≠ 0 := by exact_mod_cast h_ne
+  push_cast
+  rw [mul_sub_left_distrib]
   field_simp
-  ring
+  ring_nf
 
 /-- The Triangle Theorem: The DeepPoly upper bound contains ReLU.
 

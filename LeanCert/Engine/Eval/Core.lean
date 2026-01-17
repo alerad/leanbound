@@ -10,7 +10,7 @@ import LeanCert.Core.IntervalRealEndpoints
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Bounds
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Sinc
-import Mathlib.Data.Real.Pi.Bounds
+import Mathlib.Analysis.Real.Pi.Bounds
 
 /-!
 # Computable Interval Evaluation
@@ -173,7 +173,7 @@ theorem mem_atanhInterval {x : ℝ} {I : IntervalRat} (hx : x ∈ I)
   simp only [hlo, hhi, and_self, ↓reduceDIte]
   let Iball : IntervalRat.IntervalRatInUnitBall := ⟨I.lo, I.hi, I.le, hlo, hhi⟩
   have hx_ball : x ∈ Iball := by
-    simp only [Membership.mem, IntervalRat.IntervalRatInUnitBall.mem_def]
+    simp only [Membership.mem]
     exact hx
   exact IntervalRat.mem_atanhIntervalComputed hx_ball
 
@@ -295,7 +295,7 @@ theorem mem_invInterval_pos {x : ℝ} {I : IntervalRat}
   have hhi_ne : (I.hi : ℝ) ≠ 0 := ne_of_gt hhi_pos
   split_ifs with hle
   · -- Case: 1/hi ≤ 1/lo (normal ordering)
-    simp only [Rat.cast_inv, Rat.cast_div, Rat.cast_one, one_div]
+    simp only [Rat.cast_inv, one_div]
     constructor
     · -- (I.hi)⁻¹ ≤ x⁻¹ follows from x ≤ I.hi
       exact (inv_le_inv₀ hhi_pos hx_pos).mpr hx.2
@@ -339,7 +339,7 @@ theorem mem_invInterval_neg {x : ℝ} {I : IntervalRat}
   have hhi_neg' : (I.hi : ℝ) < 0 := by exact_mod_cast hneg
   -- For negative x: 1/x is still decreasing, so 1/b ≤ 1/x ≤ 1/a
   split_ifs with hle
-  · simp only [Rat.cast_inv, Rat.cast_div, Rat.cast_one, one_div]
+  · simp only [Rat.cast_inv, one_div]
     constructor
     · -- (I.hi)⁻¹ ≤ x⁻¹ when x ≤ hi < 0 (since 1/x is decreasing for negatives)
       exact (inv_le_inv_of_neg hhi_neg' hx_neg).mpr hx.2

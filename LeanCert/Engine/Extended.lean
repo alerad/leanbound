@@ -211,7 +211,8 @@ private def mkSafeInterval (a b : ℚ) : IntervalRat :=
 private theorem mem_mkSafeInterval_of_le_le {x : ℝ} {a b : ℚ}
     (ha : (a : ℝ) ≤ x) (hb : x ≤ (b : ℝ)) :
     x ∈ mkSafeInterval a b := by
-  simp [mkSafeInterval, IntervalRat.mem_def, min_le_iff, le_max_iff]
+  simp only [mkSafeInterval, IntervalRat.mem_def, Rat.cast_min, inf_le_iff, Rat.cast_max,
+    le_sup_iff]
   exact ⟨Or.inl ha, Or.inr hb⟩
 
 /-- Extended inversion: handles 1/I when I may contain zero.
@@ -275,7 +276,7 @@ theorem mem_invExtended {x : ℝ} {I : IntervalRat} (hx : x ∈ I) (hxne : x ≠
       have hlo_pos : (0 : ℝ) < I.lo := by exact_mod_cast hpos
       linarith
     simp [invExtended, hpos, ExtendedInterval.mem_singleton, IntervalRat.mem_def,
-      Rat.cast_inv, Rat.cast_div, Rat.cast_one, one_div]
+      Rat.cast_inv, one_div]
     constructor
     · exact (inv_le_inv₀ hhi_pos hxpos).mpr hxI.2
     · exact (inv_le_inv₀ hxpos (by exact_mod_cast hpos)).mpr hxI.1
@@ -285,7 +286,7 @@ theorem mem_invExtended {x : ℝ} {I : IntervalRat} (hx : x ∈ I) (hxne : x ≠
       have hle : (I.lo : ℝ) ≤ I.hi := by exact_mod_cast I.le
       have hlo_neg : (I.lo : ℝ) < 0 := lt_of_le_of_lt hle hhi_neg
       simp [invExtended, hpos, hneg, ExtendedInterval.mem_singleton, IntervalRat.mem_def,
-        Rat.cast_inv, Rat.cast_div, Rat.cast_one, one_div]
+        Rat.cast_inv, one_div]
       constructor
       · exact (inv_le_inv_of_neg (by exact_mod_cast hneg) hxneg).mpr hxI.2
       · exact (inv_le_inv_of_neg hxneg hlo_neg).mpr hxI.1

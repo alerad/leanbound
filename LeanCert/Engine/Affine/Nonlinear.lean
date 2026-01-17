@@ -328,10 +328,10 @@ theorem mem_sqrt {a : AffineForm} {eps : NoiseAssignment} {v : ℝ}
     · -- |sqrt v - mid| ≤ |rad|
       rw [habs_rad]
       have hmid_real : (((0 + max I.hi 1) / 2 : ℚ) : ℝ) = max (I.hi : ℝ) 1 / 2 := by
-        simp only [Rat.cast_add, Rat.cast_zero, Rat.cast_div, Rat.cast_max, Rat.cast_one, zero_add]
+        simp only [Rat.cast_div, Rat.cast_max, Rat.cast_one, zero_add]
         ring
       have hrad_real : (((max I.hi 1 - 0) / 2 : ℚ) : ℝ) = max (I.hi : ℝ) 1 / 2 := by
-        simp only [Rat.cast_sub, Rat.cast_zero, Rat.cast_div, Rat.cast_max, Rat.cast_one, sub_zero]
+        simp only [Rat.cast_div, Rat.cast_max, Rat.cast_one, sub_zero]
         ring
       rw [abs_le]
       constructor

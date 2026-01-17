@@ -39,11 +39,11 @@ open LeanCert.Engine
 
 /-- Negate an interval: -I = [-hi, -lo] -/
 def IntervalDyadic.neg (I : IntervalDyadic) : IntervalDyadic where
-  lo := Dyadic.neg I.hi
-  hi := Dyadic.neg I.lo
+  lo := Core.Dyadic.neg I.hi
+  hi := Core.Dyadic.neg I.lo
   le := by
-    have h := Dyadic.toRat_neg I.hi
-    have h' := Dyadic.toRat_neg I.lo
+    have h := Core.Dyadic.toRat_neg I.hi
+    have h' := Core.Dyadic.toRat_neg I.lo
     rw [h, h']
     linarith [I.le]
 
@@ -53,12 +53,12 @@ theorem IntervalDyadic.mem_neg {x : ℝ} {I : IntervalDyadic} (hx : x ∈ I) :
   simp only [IntervalDyadic.mem_def] at hx ⊢
   constructor
   · -- Lower bound: (I.neg.lo.toRat : ℝ) ≤ -x
-    show (↑(Dyadic.neg I.hi).toRat : ℝ) ≤ -x
-    rw [Dyadic.toRat_neg, Rat.cast_neg]
+    show (↑(Core.Dyadic.neg I.hi).toRat : ℝ) ≤ -x
+    rw [Core.Dyadic.toRat_neg, Rat.cast_neg]
     linarith [hx.2]
   · -- Upper bound: -x ≤ (I.neg.hi.toRat : ℝ)
-    show -x ≤ ↑(Dyadic.neg I.lo).toRat
-    rw [Dyadic.toRat_neg, Rat.cast_neg]
+    show -x ≤ ↑(Core.Dyadic.neg I.lo).toRat
+    rw [Core.Dyadic.toRat_neg, Rat.cast_neg]
     linarith [hx.1]
 
 /-- Subtract two intervals: I - J = I + (-J) -/
@@ -68,7 +68,7 @@ def IntervalDyadic.sub (I J : IntervalDyadic) : IntervalDyadic :=
 /-- Membership in subtracted interval -/
 theorem IntervalDyadic.mem_sub {x y : ℝ} {I J : IntervalDyadic}
     (hx : x ∈ I) (hy : y ∈ J) : x - y ∈ I.sub J := by
-  simp only [sub, sub_eq_add_neg]
+  simp only [sub_eq_add_neg]
   exact IntervalDyadic.mem_add hx (IntervalDyadic.mem_neg hy)
 
 /-! ### Sequential Network Infrastructure -/

@@ -32,6 +32,8 @@ enabling verified linear algebra computations.
 namespace LeanCert.Engine
 
 open LeanCert.Core
+-- open Core
+-- open Core.Dyadic
 
 /-- A vector of intervals representing bounded real vectors -/
 abbrev IntervalVector := List IntervalDyadic
@@ -61,10 +63,10 @@ theorem mem_scalarMulInterval {w : ℚ} {x : ℝ} {I : IntervalDyadic}
     Returns an interval containing all possible dot products. -/
 def dotProduct (weights : List ℚ) (inputs : IntervalVector) (prec : Int := -53) : IntervalDyadic :=
   match weights, inputs with
-  | [], [] => IntervalDyadic.singleton (Dyadic.ofInt 0)
+  | [], [] => IntervalDyadic.singleton (Core.Dyadic.ofInt 0)
   | w :: ws, I :: Is =>
       IntervalDyadic.add (scalarMulInterval w I prec) (dotProduct ws Is prec)
-  | _, _ => IntervalDyadic.singleton (Dyadic.ofInt 0)  -- dimension mismatch fallback
+  | _, _ => IntervalDyadic.singleton (Core.Dyadic.ofInt 0)  -- dimension mismatch fallback
 
 /-- Helper: real dot product of two lists -/
 def realDotProduct (weights : List ℚ) (values : List ℝ) : ℝ :=
@@ -74,9 +76,9 @@ def realDotProduct (weights : List ℚ) (values : List ℝ) : ℝ :=
   | _, _ => 0
 
 /-- Zero is in the zero singleton -/
-theorem mem_zero_singleton : (0 : ℝ) ∈ IntervalDyadic.singleton (Dyadic.ofInt 0) := by
-  have h := IntervalDyadic.mem_singleton (Dyadic.ofInt 0)
-  simp only [Dyadic.toRat_ofInt, Int.cast_zero, Rat.cast_zero] at h
+theorem mem_zero_singleton : (0 : ℝ) ∈ IntervalDyadic.singleton (Core.Dyadic.ofInt 0) := by
+  have h := IntervalDyadic.mem_singleton (Core.Dyadic.ofInt 0)
+  simp only [Core.Dyadic.toRat_ofInt, Int.cast_zero, Rat.cast_zero] at h
   exact h
 
 /-- Soundness of dot product for matching-length lists -/
@@ -135,7 +137,7 @@ theorem mem_add_component {x y : ℝ} {I J : IntervalDyadic}
   IntervalDyadic.mem_add hx hy
 
 /-- Zero interval (singleton at 0) -/
-def zero : IntervalDyadic := IntervalDyadic.singleton (Dyadic.ofInt 0)
+def zero : IntervalDyadic := IntervalDyadic.singleton (Core.Dyadic.ofInt 0)
 
 /-- Membership in zero interval -/
 theorem mem_zero : (0 : ℝ) ∈ zero := mem_zero_singleton

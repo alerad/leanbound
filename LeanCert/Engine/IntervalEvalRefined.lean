@@ -100,10 +100,8 @@ theorem mem_logIntervalRefined {x : ℝ} {I : IntervalRat.IntervalRatPos} (hx : 
     cases hlog : TaylorModel.tmLog I.toIntervalRat 5 with
     | none =>
       -- This case shouldn't happen for positive intervals
-      simp only [hlog]
       exact IntervalRat.mem_logInterval hx
     | some logTM =>
-      simp only [hlog]
       -- Use tmLog_correct: log x ∈ logTM.evalSet x, then taylorModel_correct gives bound
       have h_evalSet := TaylorModel.tmLog_correct I.toIntervalRat 5 logTM hlog x hx
       -- logTM.domain = I.toIntervalRat from tmLog definition
@@ -144,7 +142,7 @@ theorem mem_atanhIntervalRefined {x : ℝ} {I : IntervalRat}
   unfold atanhIntervalRefined'
   by_cases hw : I.width ≤ 1 ∧ max (|I.lo|) (|I.hi|) ≤ 99/100
   · -- Use Taylor model approach
-    simp only [hw, ↓reduceIte]
+    simp only [hw]
     have ⟨_, hradius⟩ := hw
     -- Prove |x| < 1 from interval bounds
     have hx_lo : (I.lo : ℝ) ≤ x := hx.1
@@ -167,7 +165,7 @@ theorem mem_atanhIntervalRefined {x : ℝ} {I : IntervalRat}
     simp only [hw, ↓reduceIte]
     let Iball : IntervalRat.IntervalRatInUnitBall := ⟨I.lo, I.hi, I.le, hlo, hhi⟩
     have hx_ball : x ∈ Iball := by
-      simp only [Membership.mem, IntervalRat.IntervalRatInUnitBall.mem_def]
+      simp only [Membership.mem]
       exact hx
     exact IntervalRat.mem_atanhIntervalComputed hx_ball
 

@@ -114,8 +114,6 @@ theorem hasDerivAt_sinc_zero : HasDerivAt sinc 0 0 := by
         have hy_ne : |y| ≠ 0 := ne_of_gt hy_abs_pos
         have hsq : y ^ 2 = |y| ^ 2 := (sq_abs y).symm
         field_simp [hy_ne]
-        rw [hsq]
-        ring
     _ < ε := by
         have h_eps : |y| < ε * 4 := (lt_min_iff.mp hy_dist).2
         linarith

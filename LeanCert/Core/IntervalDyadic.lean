@@ -346,7 +346,7 @@ theorem mem_sqrt' {x : ℝ} {I : IntervalDyadic} (hx : x ∈ I) (prec : Int) :
     have hsqrt_zero : Real.sqrt x = 0 := Real.sqrt_eq_zero'.mpr (le_of_lt hx_neg)
     simp only [sqrt, mem_def, Dyadic.max_toRat, Dyadic.toRat_ofInt, hsqrt_zero]
     have hz : Dyadic.zero.toRat = 0 := Dyadic.toRat_zero
-    simp only [hz, Rat.cast_zero, Rat.cast_max, Rat.cast_one]
+    simp only [hz, Rat.cast_zero, Rat.cast_max]
     constructor
     · norm_num
     · apply le_max_of_le_right

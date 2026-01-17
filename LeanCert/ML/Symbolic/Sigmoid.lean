@@ -115,7 +115,7 @@ theorem sigmoid_strictMono : StrictMono sigmoid := by
   -- i.e., exp(-b) < exp(-a)
   -- Since exp is strictly monotone and -b < -a (because a < b)
   have h : -b < -a := neg_lt_neg hab
-  linarith [exp_lt_exp_of_lt h]
+  linarith [exp_strictMono h]
 
 /-- Sigmoid is monotone increasing -/
 theorem sigmoid_mono : Monotone sigmoid := sigmoid_strictMono.monotone
@@ -206,9 +206,10 @@ theorem sigmoidSecant_at_l (l u : ℝ) : sigmoidSecantEval l u l = sigmoid l := 
 theorem sigmoidSecant_at_u (l u : ℝ) (h : l < u) :
     sigmoidSecantEval l u u = sigmoid u := by
   unfold sigmoidSecantEval
-  simp only [h, ↓reduceDIte]
+  simp only [h, ↓reduceIte]
   have hne : u - l ≠ 0 := sub_ne_zero.mpr (ne_of_gt h)
   field_simp
+  ring
 
 /-! ## Derivative -/
 

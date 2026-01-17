@@ -384,8 +384,7 @@ theorem newton_preserves_root (e : Expr) (hsupp : ExprSupported e) (hvar0 : Uses
     cases htm : TaylorModel.fromExpr? e I 1 with
     | none =>
       -- If fromExpr? returns none, then newtonStepTM returns none, contradiction with hTM
-      simp only [htm] at hTM
-      exact Option.noConfusion hTM
+      simp only [htm, Option.bind_eq_bind, Option.bind_none, reduceCtorEq] at hTM
     | some tm =>
       simp only [htm] at hTM
       -- Extract the key values
@@ -394,8 +393,8 @@ theorem newton_preserves_root (e : Expr) (hsupp : ExprSupported e) (hvar0 : Uses
       have hzero : ¬IntervalRat.containsZero dI := by
         intro hcontra
         by_cases h : (derivInterval e (fun _ => I) 0).containsZero
-        · simp only [h] at hTM
-          exact Option.noConfusion hTM
+        · simp only [h, ↓reduceDIte, Option.bind_eq_bind, Option.bind_fun_none,
+          reduceCtorEq] at hTM
         · exact h hcontra
       -- Define the Newton components
       let c : ℚ := tm.center
@@ -462,8 +461,7 @@ theorem newton_preserves_root (e : Expr) (hsupp : ExprSupported e) (hvar0 : Uses
       -- Use decidability to split: either containsZero is true or false
       by_cases h : (derivInterval e (fun _ => I) 0).containsZero
       · -- Case: containsZero is true => hSimple : none = some N, contradiction
-        simp only [h] at hSimple
-        exact Option.noConfusion hSimple
+        simp only [h, ↓reduceDIte, reduceCtorEq] at hSimple
       · -- Case: containsZero is false, but we assumed hcontra says dI.containsZero
         -- dI = derivInterval e (fun _ => I) 0 by definition
         exact h hcontra
@@ -529,17 +527,16 @@ theorem newton_step_at_most_one_root (e : Expr) (hsupp : ExprSupported e) (hvar0
     rcases hN with ⟨N, hTM⟩ | ⟨N, hSimple⟩
     · simp only [newtonStepTM] at hTM
       cases htm : TaylorModel.fromExpr? e I 1 with
-      | none => simp only [htm] at hTM; exact Option.noConfusion hTM
+      | none => simp only [htm, Option.bind_eq_bind, Option.bind_none, reduceCtorEq] at hTM;
       | some tm =>
         simp only [htm] at hTM
         by_cases h : (derivInterval e (fun _ => I) 0).containsZero
-        · simp only [h] at hTM
-          exact Option.noConfusion hTM
+        · simp only [h, ↓reduceDIte, Option.bind_eq_bind, Option.bind_fun_none,
+          reduceCtorEq] at hTM
         · exact h
     · simp only [newtonStepSimple] at hSimple
       by_cases h : (derivInterval e (fun _ => I) 0).containsZero
-      · simp only [h] at hSimple
-        exact Option.noConfusion hSimple
+      · simp only [h, ↓reduceDIte, reduceCtorEq] at hSimple
       · exact h
   -- f' ≠ 0 on I means f is strictly monotonic, so at most one root
   have hmvt := deriv_in_derivInterval e hsupp hvar0 I
@@ -662,8 +659,7 @@ lemma newtonStepSimple_extract (e : Expr) (I N : IntervalRat)
   -- The dite splits on containsZero
   by_cases hzero : (derivInterval e (fun _ => I) 0).containsZero
   · -- If dI contains zero, newtonStepSimple returns none, contradiction
-    simp only [hzero, dite_true] at hSimple
-    exact Option.noConfusion hSimple
+    simp only [hzero, ↓reduceDIte, reduceCtorEq] at hSimple
   · -- If dI doesn't contain zero, we get an intersection
     simp only [hzero, dite_false] at hSimple
     use hzero
@@ -683,7 +679,7 @@ lemma newtonStepSimple_extract (e : Expr) (I N : IntervalRat)
       · -- N.hi = min I.hi (c - Q.lo)
         exact congrArg IntervalRat.hi hSimple.symm
     · -- The intersection failed (none), contradiction with hSimple : none = some N
-      exact Option.noConfusion hSimple
+      simp only [reduceCtorEq] at hSimple
 
 /-- Extract structure from newtonStepTM. This extracts the TM and proves the key structural facts. -/
 lemma newtonStepTM_structure (e : Expr) (I N : IntervalRat)
@@ -703,16 +699,14 @@ lemma newtonStepTM_structure (e : Expr) (I N : IntervalRat)
   match hFrom : TaylorModel.fromExpr? e I 1 with
   | none =>
       -- If fromExpr? returns none, the do-block returns none, contradicting hTM
-      simp only [hFrom, bind, Option.bind] at hTM
-      exact Option.noConfusion hTM
+      simp only [bind, Option.bind, hFrom, reduceCtorEq] at hTM
   | some tm =>
       -- Now the do-block continues with this tm
       simp only [hFrom, bind, Option.bind] at hTM
       -- Step 3: Split on containsZero for dI
       by_cases hzero : (derivInterval e (fun _ => I) 0).containsZero
       · -- If dI contains zero, the branch returns none; contradiction
-        simp only [dif_pos hzero] at hTM
-        exact Option.noConfusion hTM
+        simp only [dif_pos hzero, reduceCtorEq] at hTM
       · -- Else branch: we really have an intersection = some N
         simp only [dif_neg hzero] at hTM
         -- Step 4: Build the witness
@@ -734,7 +728,7 @@ lemma newtonStepTM_structure (e : Expr) (I N : IntervalRat)
           rw [hcenter] at hN_lo hN_hi
           exact ⟨hN_lo, hN_hi⟩
         · -- Failure branch: intersect returned none, contradiction
-          exact Option.noConfusion hTM
+          simp only [reduceCtorEq] at hTM
 
 /-- Key correctness lemma: for TM Newton step, f(c) ∈ the TM-computed fc interval.
     This is what allows us to use the generic contraction contradiction lemmas. -/

@@ -85,7 +85,7 @@ theorem reduced_bounds_weak {q : ℚ} (hq : 0 < q) :
   have hden_pos_q : (0 : ℚ) < q.den := by exact_mod_cast hden_pos
   have hnum_pos_q : (0 : ℚ) < q.num.natAbs := by exact_mod_cast Nat.pos_of_ne_zero hnum_ne
   have hq_eq : q = q.num / q.den := (Rat.num_div_den q).symm
-  have hnum_eq : (q.num : ℚ) = q.num.natAbs := by simp only [Int.cast_natAbs, abs_of_pos hnum_pos]
+  have hnum_eq : (q.num : ℚ) = q.num.natAbs := by simp only [Nat.cast_natAbs, abs_of_pos hnum_pos]
   have hexp : (-(↑n - ↑d) : ℤ) = (d : ℤ) - (n : ℤ) := by ring
   rw [hexp]
   have hpow_diff : (2 : ℚ) ^ ((d : ℤ) - (n : ℤ)) = 2 ^ d / 2 ^ n := by
@@ -150,7 +150,7 @@ theorem reduced_bounds {q : ℚ} (hq : 0 < q) :
   have hden_pos_q : (0 : ℚ) < q.den := by exact_mod_cast hden_pos
   have hnum_pos_q : (0 : ℚ) < q.num.natAbs := by exact_mod_cast Nat.pos_of_ne_zero hnum_ne
   have hq_eq : q = q.num / q.den := (Rat.num_div_den q).symm
-  have hnum_eq : (q.num : ℚ) = q.num.natAbs := by simp only [Int.cast_natAbs, abs_of_pos hnum_pos]
+  have hnum_eq : (q.num : ℚ) = q.num.natAbs := by simp only [Nat.cast_natAbs, abs_of_pos hnum_pos]
   have hexp : (-(↑n - ↑d) : ℤ) = (d : ℤ) - (n : ℤ) := by ring
   rw [hexp]
   have hpow_diff : (2 : ℚ) ^ ((d : ℤ) - (n : ℤ)) = 2 ^ d / 2 ^ n := by

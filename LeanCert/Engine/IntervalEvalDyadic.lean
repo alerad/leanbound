@@ -119,26 +119,26 @@ def coshIntervalDyadic (I : IntervalDyadic) (cfg : DyadicConfig) : IntervalDyadi
 
 /-- atan interval: global bound [-2, 2] -/
 def atanIntervalDyadic (_I : IntervalDyadic) (_cfg : DyadicConfig) : IntervalDyadic :=
-  let neg2 := Dyadic.ofInt (-2)
-  let pos2 := Dyadic.ofInt 2
+  let neg2 := Core.Dyadic.ofInt (-2)
+  let pos2 := Core.Dyadic.ofInt 2
   ⟨neg2, pos2, by rw [Dyadic.toRat_ofInt, Dyadic.toRat_ofInt]; norm_num⟩
 
 /-- tanh interval: global bound [-1, 1] -/
 def tanhIntervalDyadic (_I : IntervalDyadic) (_cfg : DyadicConfig) : IntervalDyadic :=
-  let neg1 := Dyadic.ofInt (-1)
-  let pos1 := Dyadic.ofInt 1
+  let neg1 := Core.Dyadic.ofInt (-1)
+  let pos1 := Core.Dyadic.ofInt 1
   ⟨neg1, pos1, by rw [Dyadic.toRat_ofInt, Dyadic.toRat_ofInt]; norm_num⟩
 
 /-- sinc interval: global bound [-1, 1] -/
 def sincIntervalDyadic (_I : IntervalDyadic) (_cfg : DyadicConfig) : IntervalDyadic :=
-  let neg1 := Dyadic.ofInt (-1)
-  let pos1 := Dyadic.ofInt 1
+  let neg1 := Core.Dyadic.ofInt (-1)
+  let pos1 := Core.Dyadic.ofInt 1
   ⟨neg1, pos1, by rw [Dyadic.toRat_ofInt, Dyadic.toRat_ofInt]; norm_num⟩
 
 /-- erf interval: global bound [-1, 1] -/
 def erfIntervalDyadic (_I : IntervalDyadic) (_cfg : DyadicConfig) : IntervalDyadic :=
-  let neg1 := Dyadic.ofInt (-1)
-  let pos1 := Dyadic.ofInt 1
+  let neg1 := Core.Dyadic.ofInt (-1)
+  let pos1 := Core.Dyadic.ofInt 1
   ⟨neg1, pos1, by rw [Dyadic.toRat_ofInt, Dyadic.toRat_ofInt]; norm_num⟩
 
 /-- Compute inv interval: convert to Rat, use invInterval, convert back to Dyadic -/
@@ -166,7 +166,7 @@ def logIntervalDyadic (I : IntervalDyadic) (cfg : DyadicConfig) : IntervalDyadic
   else
     -- Input may include zero or negative values, return wide fallback interval
     -- for soundness (though in practice this shouldn't happen for valid inputs)
-    ⟨Dyadic.ofInt (-1000), Dyadic.ofInt 1000, by simp [Dyadic.toRat_ofInt]⟩
+    ⟨Core.Dyadic.ofInt (-1000), Core.Dyadic.ofInt 1000, by simp [Dyadic.toRat_ofInt]⟩
 
 /-! ### Main Evaluator -/
 

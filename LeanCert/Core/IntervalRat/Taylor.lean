@@ -7,7 +7,7 @@ import LeanCert.Core.IntervalRat.Basic
 import LeanCert.Core.IntervalRat.LogReduction
 import LeanCert.Core.Taylor
 import LeanCert.Core.Expr
-import Mathlib.Data.Complex.ExponentialBounds
+import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import Mathlib.Analysis.SpecificLimits.Normed
 
@@ -1229,7 +1229,7 @@ theorem atanh_taylor_remainder_in_interval {q : ℚ} (hq : |(q : ℝ)| < 1) (n :
     · exact_mod_cast h.1
     · exact_mod_cast h.2
   have h_not_ge : ¬(|q| ≥ 1) := not_le.mpr hq_abs_lt
-  simp only [h_not_ge, ↓reduceIte, mem_def]
+  simp only [h_not_ge, mem_def]
   -- The bound R = |q|^(n+1)/(1-|q|) in ℚ
   set R_rat := |q| ^ (n + 1) / (1 - |q|) with hR_rat_def
   -- Key bounds: |q| < 1 in ℚ
@@ -1332,7 +1332,7 @@ theorem atanh_taylor_remainder_in_interval {q : ℚ} (hq : |(q : ℝ)| < 1) (n :
           intro i
           by_cases hodd : i % 2 = 1
           · simp [hodd, div_eq_mul_inv, Rat.cast_inv, Rat.cast_natCast,
-              mul_comm, mul_left_comm, mul_assoc]
+              mul_comm]
           · simp [hodd]
         calc
           ∑ i ∈ Finset.range (n + 1),
@@ -1388,21 +1388,10 @@ theorem atanh_taylor_remainder_in_interval {q : ℚ} (hq : |(q : ℝ)| < 1) (n :
           have hEq'' : 2 * a = 2 * b := (Nat.succ_inj).1 hEq'
           exact Nat.mul_left_cancel Nat.zero_lt_two hEq''
         · intro i hi
-          rcases Finset.mem_filter.1 hi with ⟨hi_range, hi_mod⟩
-          have hi_lt : i < n + 1 := Finset.mem_range.1 hi_range
-          have hodd : Odd i := (Nat.odd_iff).2 hi_mod
-          rcases (Odd.exists_bit1 hodd) with ⟨k, hk⟩
-          have hk_lt : k < m := by
-            have hi_lt' : 2 * k + 1 < n + 1 := by simpa [hk] using hi_lt
-            have hk2 : 2 * k + 2 ≤ n + 1 := by
-              simpa using (Nat.succ_le_iff.2 hi_lt')
-            have hk_le : k + 1 ≤ (n + 1) / 2 := by
-              apply (Nat.le_div_iff_mul_le Nat.zero_lt_two).2
-              simpa [Nat.add_mul, Nat.mul_comm, Nat.mul_left_comm, Nat.mul_assoc] using hk2
-            have hk_le' : Nat.succ k ≤ m := by
-              simpa [m] using hk_le
-            exact (Nat.succ_le_iff).1 hk_le'
-          exact ⟨k, Finset.mem_range.2 hk_lt, by simp [hk]⟩
+          simp [m]
+          use (i - 1) / 2
+          simp at hi
+          grind only
         · intro k hk
           simp [term]
 
@@ -1680,7 +1669,6 @@ theorem mem_logPointComputable {q : ℚ} (hq : 0 < q) (n : ℕ) :
   -- Step 5: log(q) = log(m) + k * log(2) by log_reduction
   have h_log_eq : Real.log q = Real.log m + k * Real.log 2 := by
     have h := LogReduction.log_reduction hq
-    simp only [hk_eq, hm_eq] at h
     exact h
 
   -- Step 6: Combine using mem_add

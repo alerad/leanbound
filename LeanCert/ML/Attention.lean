@@ -58,7 +58,7 @@ open LeanCert.ML.Optimized
     We use a rational approximation that bounds the true value. -/
 def invSqrtDim (d_k : Nat) (prec : Int) : IntervalDyadic :=
   if d_k = 0 then
-    IntervalDyadic.singleton (Dyadic.ofInt 1)
+    IntervalDyadic.singleton (Core.Dyadic.ofInt 1)
   else
     -- √d_k ∈ [√d_k - ε, √d_k + ε] for small ε
     -- We compute a conservative bound
@@ -91,7 +91,7 @@ def attentionWeights (q : IntervalVector) (K : List IntervalVector)
   let scores := K.map (fun k_i =>
     -- Dot product q · k_i
     let dots := List.zipWith (fun qi ki => IntervalDyadic.mulRounded qi ki prec) q k_i
-    let sum := dots.foldl IntervalDyadic.add (IntervalDyadic.singleton (Dyadic.ofInt 0))
+    let sum := dots.foldl IntervalDyadic.add (IntervalDyadic.singleton (Core.Dyadic.ofInt 0))
     -- Scale by 1/√d_k
     IntervalDyadic.mulRounded sum scale prec
   )
@@ -115,7 +115,7 @@ def applyAttention (weights : IntervalVector) (V : List IntervalVector)
   else
     let d_v := V.head!.length
     -- Initialize output as zeros
-    let zero := List.replicate d_v (IntervalDyadic.singleton (Dyadic.ofInt 0))
+    let zero := List.replicate d_v (IntervalDyadic.singleton (Core.Dyadic.ofInt 0))
     -- Weighted sum: Σ weights[i] * V[i]
     let weighted := List.zipWith (fun w v_i =>
       v_i.map (fun vij => IntervalDyadic.mulRounded w vij prec)
@@ -179,7 +179,7 @@ def linearProject (X : List IntervalVector) (W : List (List ℚ))
         let w_interval := IntervalDyadic.ofIntervalRat (IntervalRat.singleton wi) prec
         IntervalDyadic.mulRounded w_interval xi prec
       ) w_row x
-      products.foldl IntervalDyadic.add (IntervalDyadic.singleton (Dyadic.ofInt 0))
+      products.foldl IntervalDyadic.add (IntervalDyadic.singleton (Core.Dyadic.ofInt 0))
     )
   )
 
@@ -222,7 +222,7 @@ def multiHeadAttention (params : MultiHeadAttentionParams)
         let w_interval := IntervalDyadic.ofIntervalRat (IntervalRat.singleton wi) prec
         IntervalDyadic.mulRounded w_interval xi prec
       ) w_row concat
-      products.foldl IntervalDyadic.add (IntervalDyadic.singleton (Dyadic.ofInt 0))
+      products.foldl IntervalDyadic.add (IntervalDyadic.singleton (Core.Dyadic.ofInt 0))
     )
     projected
   )

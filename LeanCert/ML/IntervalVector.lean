@@ -59,8 +59,8 @@ namespace IntervalVector
 /-- ReLU applied to an interval: max(0, x) for all x in the interval.
     Returns [max(0, lo), max(0, hi)] -/
 def relu (I : IntervalDyadic) : IntervalDyadic where
-  lo := Dyadic.max (Dyadic.ofInt 0) I.lo
-  hi := Dyadic.max (Dyadic.ofInt 0) I.hi
+  lo := Dyadic.max (Core.Dyadic.ofInt 0) I.lo
+  hi := Dyadic.max (Core.Dyadic.ofInt 0) I.hi
   le := by
     simp only [Dyadic.max_toRat, Dyadic.toRat_ofInt, Int.cast_zero]
     exact max_le_max (le_refl (0 : ℚ)) I.le
@@ -98,8 +98,8 @@ theorem mem_reluVector_component {x : ℝ} {I : IntervalDyadic} (hx : x ∈ I) :
     Since sigmoid(x) = 1/(1 + exp(-x)) ∈ (0, 1) for all x,
     [0, 1] is a sound overapproximation for any input interval. -/
 def sigmoid (_I : IntervalDyadic) : IntervalDyadic where
-  lo := Dyadic.ofInt 0
-  hi := Dyadic.ofInt 1
+  lo := Core.Dyadic.ofInt 0
+  hi := Core.Dyadic.ofInt 1
   le := by rw [Dyadic.toRat_ofInt, Dyadic.toRat_ofInt]; norm_num
 
 /-- Real sigmoid function -/

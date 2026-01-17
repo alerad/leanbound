@@ -59,7 +59,7 @@ noncomputable def logSumExp (x : IntervalVector) (prec : Int) : IntervalDyadic :
   let exps := expVector shifted prec
 
   -- 4. Sum
-  let zeroInterval := IntervalDyadic.singleton (Dyadic.ofInt 0)
+  let zeroInterval := IntervalDyadic.singleton (Core.Dyadic.ofInt 0)
   let sum_exp := exps.foldl (fun acc I => IntervalDyadic.add acc I) zeroInterval
 
   -- 5. Log
@@ -92,7 +92,7 @@ def softmaxComponent (x : IntervalVector) (k : Nat) (prec : Int) : IntervalDyadi
     let exps := expVector diffs prec
 
     -- 3. Sum (this includes j=k where exp(0)=1, which is correct)
-    let zeroInterval := IntervalDyadic.singleton (Dyadic.ofInt 0)
+    let zeroInterval := IntervalDyadic.singleton (Core.Dyadic.ofInt 0)
     let sum_exps := exps.foldl (fun acc I => IntervalDyadic.add acc I) zeroInterval
 
     -- 4. Invert: 1 / sum
@@ -106,7 +106,7 @@ def softmaxComponent (x : IntervalVector) (k : Nat) (prec : Int) : IntervalDyadi
     else
        -- Fallback: When interval arithmetic is too loose to prove sum > 0,
        -- we use the conservative bound [0, 1] since softmax ∈ (0, 1) always.
-       ⟨Dyadic.ofInt 0, Dyadic.ofInt 1, by simp [Dyadic.toRat_ofInt]⟩
+       ⟨Core.Dyadic.ofInt 0, Core.Dyadic.ofInt 1, by simp [Core.Dyadic.toRat_ofInt]⟩
   else
     default
 
@@ -232,7 +232,7 @@ theorem mem_softmax {v : List ℝ} {I : IntervalVector}
   let I_k := I[k]'hk
   let diffs := I.map (fun I_j => IntervalDyadic.sub I_j I_k)
   let exps := expVector diffs prec
-  let zeroInterval := IntervalDyadic.singleton (Dyadic.ofInt 0)
+  let zeroInterval := IntervalDyadic.singleton (Core.Dyadic.ofInt 0)
   let sum_exps := exps.foldl (fun acc I => IntervalDyadic.add acc I) zeroInterval
 
   -- A. v_j - v_k ∈ I_j - I_k (subtraction soundness)
@@ -270,8 +270,8 @@ theorem mem_softmax {v : List ℝ} {I : IntervalVector}
       simp [exps, expVector, diffs, hdim]
     -- 0 ∈ zeroInterval
     have h_zero : (0 : ℝ) ∈ zeroInterval := by
-      simp only [zeroInterval, IntervalDyadic.mem_def, Dyadic.toRat_ofInt,
-                 IntervalDyadic.singleton, Rat.cast_zero]
+      simp only [zeroInterval, IntervalDyadic.mem_def, Core.Dyadic.toRat_ofInt,
+                 IntervalDyadic.singleton]
       constructor <;> norm_num
     -- Apply the foldl lemma
     -- List.sum is foldl (+) 0
