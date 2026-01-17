@@ -1,8 +1,8 @@
 site_name: LeanCert
 site_description: Certified numerical computation and bound verification for Lean 4.
 site_url: https://docs.leancert.io
-repo_url: https://github.com/alerad/leanbound
-repo_name: alerad/leanbound
+repo_url: https://github.com/alerad/leancert
+repo_name: alerad/leancert
 
 theme:
   name: material
