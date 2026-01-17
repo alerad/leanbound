@@ -2485,10 +2485,44 @@ where
       else
         reify func
 
+  /-- Try to convert Set.Icc to IntervalRat for root_bound -/
+  tryConvertSetIccForRootBound (interval : Lean.Expr) : MetaM (Option Lean.Expr) := do
+    let fn := interval.getAppFn
+    let args := interval.getAppArgs
+    -- Set.Icc : {α : Type*} → [Preorder α] → α → α → Set α
+    -- So args are: [α, inst, lo, hi]
+    if fn.isConstOf ``Set.Icc && args.size >= 4 then
+      let loExpr := args[2]!
+      let hiExpr := args[3]!
+      -- Try to extract rationals from the bounds
+      if let some lo ← extractRatFromReal loExpr then
+        if let some hi ← extractRatFromReal hiExpr then
+          let loRatExpr := toExpr lo
+          let hiRatExpr := toExpr hi
+          let leProofTy ← mkAppM ``LE.le #[loRatExpr, hiRatExpr]
+          let leProof ← mkDecideProof leProofTy
+          let intervalRat ← mkAppM ``IntervalRat.mk #[loRatExpr, hiRatExpr, leProof]
+          return some intervalRat
+    return none
+
   /-- Prove ∀ x ∈ I, f x ≠ 0 using verify_no_root -/
   proveForallNeZero (goal : MVarId) (interval func : Lean.Expr)
       (taylorDepth : Nat) : TacticM Unit := do
     goal.withContext do
+      -- 0. Try to convert Set.Icc to IntervalRat if needed
+      let mut fromSetIcc := false
+      let intervalExpr ←
+        match ← tryConvertSetIccForRootBound interval with
+        | some intervalRat =>
+            fromSetIcc := true
+            pure intervalRat
+        | none =>
+            let intervalTy ← inferType interval
+            if intervalTy.isConstOf ``IntervalRat then
+              pure interval
+            else
+              throwError "root_bound: Only IntervalRat or literal Set.Icc intervals are supported"
+
       -- 1. Get AST
       let ast ← getAst func
 
@@ -2500,17 +2534,24 @@ where
 
       -- 4. Apply verify_no_root theorem
       let proof ← mkAppM ``Validity.RootFinding.verify_no_root
-        #[ast, supportProof, interval, cfgExpr]
+        #[ast, supportProof, intervalExpr, cfgExpr]
 
-      -- 5. Apply the proof - this leaves the certificate check as a goal
-      let newGoals ← goal.apply proof
+      if fromSetIcc then
+        -- Use simpa to bridge Set.Icc to IntervalRat
+        let proofSyntax ← Term.exprToSyntax proof
+        evalTactic (← `(tactic| refine (by
+          have h := $proofSyntax (by native_decide)
+          simpa [IntervalRat.mem_iff_mem_Icc] using h)))
+      else
+        -- 5. Apply the proof - this leaves the certificate check as a goal
+        let newGoals ← goal.apply proof
 
-      setGoals newGoals
+        setGoals newGoals
 
-      -- 6. Solve remaining goals with native_decide
-      for g in newGoals do
-        setGoals [g]
-        evalTactic (← `(tactic| native_decide))
+        -- 6. Solve remaining goals with native_decide
+        for g in newGoals do
+          setGoals [g]
+          evalTactic (← `(tactic| native_decide))
 
 /-- The root_bound tactic.
 

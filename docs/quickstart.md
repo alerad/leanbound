@@ -151,6 +151,36 @@ example : ∃ x ∈ I12, Expr.eval (fun _ => x)
   interval_roots
 ```
 
+### Multivariate Bounds
+
+```lean
+import LeanCert.Tactic.IntervalAuto
+
+-- Prove bounds over multiple variables
+example : ∀ x ∈ Set.Icc (0:ℝ) 1, ∀ y ∈ Set.Icc (0:ℝ) 1,
+    x + y ≤ (2 : ℚ) := by
+  multivariate_bound
+
+example : ∀ x ∈ Set.Icc (0:ℝ) 1, ∀ y ∈ Set.Icc (0:ℝ) 1, ∀ z ∈ Set.Icc (0:ℝ) 1,
+    x + y + z ≤ (3 : ℚ) := by
+  multivariate_bound
+```
+
+### Proving Absence of Roots
+
+```lean
+import LeanCert.Tactic.IntervalAuto
+
+open LeanCert.Core
+
+def I01 : IntervalRat := ⟨0, 1, by norm_num⟩
+
+-- Prove f(x) ≠ 0 by showing function stays positive/negative
+example : ∀ x ∈ I01, Expr.eval (fun _ => x)
+    (Expr.add (Expr.mul (Expr.var 0) (Expr.var 0)) (Expr.const 1)) ≠ (0 : ℝ) := by
+  root_bound
+```
+
 ### Discovery Commands
 
 For interactive exploration in the editor:
@@ -163,6 +193,25 @@ import LeanCert.Discovery
 
 -- Explore function behavior
 #explore (Expr.cos (Expr.var 0)) on [0, 4]
+```
+
+### Discovering Bounds (Existential)
+
+```lean
+import LeanCert.Tactic.Discovery
+
+-- Automatically find and prove a minimum exists
+example : ∃ m : ℚ, ∀ x ∈ Set.Icc (0:ℝ) 1, x^2 ≥ m := by
+  interval_minimize
+
+-- Find maximum
+example : ∃ M : ℚ, ∀ x ∈ Set.Icc (0:ℝ) 1, x^2 ≤ M := by
+  interval_maximize
+
+-- Multivariate optimization
+example : ∃ m : ℚ, ∀ x ∈ Set.Icc (0:ℝ) 1, ∀ y ∈ Set.Icc (0:ℝ) 1,
+    x*x + y*y ≥ m := by
+  interval_minimize_mv
 ```
 
 ## High-Performance Dyadic Backend

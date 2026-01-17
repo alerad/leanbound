@@ -612,6 +612,65 @@ where
       if ← isDefEq xExpr x then return some interval else return none
     | _ => return none
 
+/-- Result of analyzing an argmin goal -/
+inductive ArgminGoal where
+  /-- ∃ x ∈ I, ∀ y ∈ I, f(x) ≤ f(y) -/
+  | argmin (varName : Name) (domain : Lean.Expr) (func : Lean.Expr)
+  deriving Repr
+
+/-- Try to parse a goal as an argmin goal: ∃ x ∈ I, ∀ y ∈ I, f(x) ≤ f(y) -/
+def parseArgminGoal (goal : Lean.Expr) : MetaM (Option ArgminGoal) := do
+  let goal ← whnf goal
+  -- Goal: ∃ x, x ∈ I ∧ ∀ y ∈ I, f(x) ≤ f(y)
+  match_expr goal with
+  | Exists _ body =>
+    if let .lam name ty innerBody _ := body then
+      withLocalDeclD name ty fun x => do
+        let bodyInst := innerBody.instantiate1 x
+        let bodyInst ← whnf bodyInst
+        -- bodyInst should be x ∈ I ∧ ∀ y ∈ I, f(x) ≤ f(y)
+        match_expr bodyInst with
+        | And memExpr forallExpr =>
+          -- Extract interval from membership
+          let interval? ← extractIntervalExpr memExpr x
+          let some intervalExpr := interval? | return none
+          -- Check if forallExpr is ∀ y ∈ I, f(x) ≤ f(y)
+          let forallExpr ← whnf forallExpr
+          if forallExpr.isForall then
+            let .forallE yname yty forallBody _ := forallExpr | return none
+            withLocalDeclD yname yty fun y => do
+              let forallBody := forallBody.instantiate1 y
+              let forallBody ← whnf forallBody
+              -- forallBody should be y ∈ I → f(x) ≤ f(y)
+              if forallBody.isForall then
+                let .forallE _ _memTy compBody _ := forallBody | return none
+                -- compBody should be f(x) ≤ f(y) (with y free, x from outer scope)
+                match_expr compBody with
+                | LE.le _ _ _lhs rhs =>
+                  -- rhs is f(y), we extract the function structure
+                  -- The function is fun z => (rhs with y replaced by z)
+                  let func ← mkLambdaFVars #[y] rhs
+                  return some (.argmin name intervalExpr func)
+                | _ => return none
+              else return none
+          else return none
+        | _ => return none
+    else return none
+  | _ => return none
+where
+  /-- Extract the interval from a membership expression x ∈ I -/
+  extractIntervalExpr (memExpr : Lean.Expr) (x : Lean.Expr) : MetaM (Option Lean.Expr) := do
+    match_expr memExpr with
+    | Membership.mem _ _ _ interval xExpr =>
+      if ← isDefEq xExpr x then return some interval else return none
+    | _ => return none
+
+/-- Check if a function expression is wrapped in Expr.eval -/
+def isExprEvalFunc (func : Lean.Expr) : MetaM Bool := do
+  lambdaTelescope func fun _vars body => do
+    let fn := body.getAppFn
+    return fn.isConstOf ``LeanCert.Core.Expr.eval
+
 /-- The interval_argmax tactic implementation -/
 unsafe def intervalArgmaxCore (taylorDepth : Nat) : TacticM Unit := do
   LeanCert.Tactic.Auto.intervalNormCore
@@ -626,6 +685,10 @@ unsafe def intervalArgmaxCore (taylorDepth : Nat) : TacticM Unit := do
 
   trace[LeanCert.discovery] "Parsing argmax goal: ∃ x ∈ I, ∀ y ∈ I, f(y) ≤ f(x)"
   trace[LeanCert.discovery] "Function expression: {funcExpr}"
+
+  -- Check if using native syntax (not Expr.eval)
+  let isNativeSyntax := !(← isExprEvalFunc funcExpr)
+  trace[LeanCert.discovery] "Using native syntax: {isNativeSyntax}"
 
   -- 1. Reify the function
   let ast ← getAstFromFunc funcExpr
@@ -666,15 +729,40 @@ unsafe def intervalArgmaxCore (taylorDepth : Nat) : TacticM Unit := do
   trace[LeanCert.discovery] "Witness point: x = {xOpt}"
   trace[LeanCert.discovery] "Maximum value ≈ {result.bound.hi}"
 
-  -- 5. Provide witness: refine ⟨xOpt, ?memProof, ?boundProof⟩
-  -- Note: Coerce to ℝ since interval is over ℝ
+  -- 5. Evaluate f at xOpt to get a concrete lower bound
+  -- We use the lower bound of interval evaluation at the point as our transitivity constant
+  let evalCfg : EvalConfig := { taylorDepth := taylorDepth }
+  let pointInterval : IntervalRat := ⟨xOpt, xOpt, le_refl xOpt⟩
+  let fAtXOpt := evalIntervalCore1 astVal pointInterval evalCfg
+  let cBound := fAtXOpt.lo  -- c such that c ≤ f(xOpt)
+
+  trace[LeanCert.discovery] "f(xOpt) ∈ [{fAtXOpt.lo}, {fAtXOpt.hi}]"
+  trace[LeanCert.discovery] "Using bound c = {cBound} for transitivity"
+
+  -- 6. Check that ∀ y ∈ I, f(y) ≤ c (upper bound check)
+  let upperOk := LeanCert.Validity.checkUpperBound astVal domainVal cBound evalCfg
+  trace[LeanCert.discovery] "checkUpperBound: {upperOk}"
+
+  -- 7. Check that c ≤ f(xOpt) (point lower bound check)
+  let pointOk := LeanCert.Validity.checkPointLowerBound astVal xOpt cBound evalCfg
+  trace[LeanCert.discovery] "checkPointLowerBound: {pointOk}"
+
+  if !upperOk || !pointOk then
+    throwError "interval_argmax: Bound verification failed.\n\
+      • checkUpperBound (∀ y ∈ I, f(y) ≤ {cBound}): {upperOk}\n\
+      • checkPointLowerBound ({cBound} ≤ f({xOpt})): {pointOk}\n\
+      Try increasing Taylor depth or using a different witness."
+
+  -- 8. Generate support proof
+  let suppProof ← LeanCert.Meta.mkSupportedCoreProof ast
+
+  -- 9. Provide witness: refine ⟨xOpt, ?memProof, ?boundProof⟩
   let xOptExpr := toExpr xOpt
   let xOptSyntax ← Term.exprToSyntax xOptExpr
   evalTactic (← `(tactic| refine ⟨(($xOptSyntax : ℚ) : ℝ), ?_, ?_⟩))
 
-  -- 6. Prove membership (x ∈ I)
+  -- 10. Prove membership (x ∈ I)
   trace[LeanCert.discovery] "Proving membership..."
-  let _memGoal ← getMainGoal
   try
     let memGoal ← getMainGoal
     let memType ← memGoal.getType
@@ -706,16 +794,65 @@ unsafe def intervalArgmaxCore (taylorDepth : Nat) : TacticM Unit := do
       evalTactic (← `(tactic| decide))
     catch _ =>
       logWarning m!"Could not automatically prove {xOpt} ∈ [{domainVal.lo}, {domainVal.hi}]. Goal left open."
+      return
 
-  -- 7. Prove the bound: ∀ y ∈ I, f(y) ≤ f(xOpt)
-  -- Since f(xOpt) is now a concrete rational, this becomes a standard upper bound goal
+  -- 11. Prove the bound: ∀ y ∈ I, f(y) ≤ f(xOpt)
   trace[LeanCert.discovery] "Proving universal bound..."
-  try
-    LeanCert.Tactic.Auto.intervalBoundCore taylorDepth
-    trace[LeanCert.discovery] "✓ Proof complete"
-  catch e =>
-    logWarning m!"interval_argmax: Could not prove universal bound.\n{e.toMessageData}\n\
-                  The witness x = {xOpt} may need higher precision."
+
+  if isNativeSyntax then
+    -- For native syntax, simplify and use intervalBoundCore directly
+    trace[LeanCert.discovery] "Using native syntax path with intervalBoundCore"
+    try
+      -- The goal is: ∀ y ∈ Set.Icc a b, f(y) ≤ f(xOpt)
+      -- where f(xOpt) involves xOpt which is (q : ℚ) : ℝ
+
+      -- First, simplify the goal to reduce f(xOpt) to a concrete form
+      -- Use push_cast and norm_num to simplify rational arithmetic
+      try evalTactic (← `(tactic| simp only [Rat.cast_intCast, Rat.cast_natCast])) catch _ => pure ()
+      try evalTactic (← `(tactic| push_cast)) catch _ => pure ()
+      try evalTactic (← `(tactic| norm_num [Rat.divInt_eq_div])) catch _ => pure ()
+
+      -- Now call intervalBoundCore on the simplified goal
+      LeanCert.Tactic.Auto.intervalBoundCore taylorDepth
+      trace[LeanCert.discovery] "✓ Proof complete (native syntax)"
+    catch e =>
+      throwError "interval_argmax: Could not prove universal bound.\n\
+        Error: {e.toMessageData}\n\
+        The witness x = {xOpt} may need higher precision."
+  else
+    -- For Expr.eval syntax, use verify_argmax
+    trace[LeanCert.discovery] "Using verify_argmax path"
+    try
+      -- Build the proof term using verify_argmax
+      let astSyntax ← Term.exprToSyntax ast
+      let suppSyntax ← Term.exprToSyntax suppProof
+      let domainSyntax ← Term.exprToSyntax domainExpr
+      let cBoundExpr := toExpr cBound
+      let cBoundSyntax ← Term.exprToSyntax cBoundExpr
+      let cfgExpr ← mkAppM ``EvalConfig.mk #[toExpr taylorDepth]
+      let cfgSyntax ← Term.exprToSyntax cfgExpr
+
+      -- Membership proof for xOpt
+      evalTactic (← `(tactic|
+        apply LeanCert.Validity.verify_argmax $astSyntax $suppSyntax $domainSyntax $xOptSyntax $cBoundSyntax $cfgSyntax
+          ?_ (by native_decide) (by native_decide)))
+
+      -- Prove xOpt ∈ I
+      if !(← getGoals).isEmpty then
+        evalTactic (← `(tactic| constructor <;> norm_cast))
+
+      trace[LeanCert.discovery] "✓ Proof complete"
+    catch e =>
+      -- Fallback to intervalBoundCore
+      trace[LeanCert.discovery] "verify_argmax failed, trying intervalBoundCore fallback..."
+      try
+        LeanCert.Tactic.Auto.intervalBoundCore taylorDepth
+        trace[LeanCert.discovery] "✓ Proof complete (via fallback)"
+      catch e2 =>
+        throwError "interval_argmax: Could not prove universal bound.\n\
+          Primary method (verify_argmax): {e.toMessageData}\n\
+          Fallback method (intervalBoundCore): {e2.toMessageData}\n\
+          The witness x = {xOpt} may need higher precision."
 
 /-- The interval_argmax tactic.
 
@@ -735,15 +872,192 @@ unsafe def elabIntervalArgmax : Tactic := fun stx => do
   intervalArgmaxCore depth
 
 /-- The interval_argmin tactic implementation -/
-unsafe def intervalArgminCore (_taylorDepth : Nat) : TacticM Unit := do
-  let _goal ← getMainGoal
-  let _goalType ← _goal.getType
+unsafe def intervalArgminCore (taylorDepth : Nat) : TacticM Unit := do
+  LeanCert.Tactic.Auto.intervalNormCore
+  let goal ← getMainGoal
+  let goalType ← goal.getType
 
-  -- For argmin, the goal is: ∃ x ∈ I, ∀ y ∈ I, f(x) ≤ f(y)
-  -- This is similar to argmax but with the inequality reversed
-  throwError "interval_argmin: Not yet implemented. Use interval_argmax with negated function."
+  let some (.argmin _varName domainExpr funcExpr) ← parseArgminGoal goalType
+    | let diagReport ← LeanCert.Tactic.Auto.mkDiagnosticReport "interval_argmin" goalType "parse"
+        (some m!"Expected form: ∃ x ∈ I, ∀ y ∈ I, f(x) ≤ f(y)\n\n\
+                 This proves existence of a minimizer point x in I.")
+      throwError "interval_argmin: Could not parse goal.\n\n{diagReport}"
 
-/-- The interval_argmin tactic. -/
+  trace[LeanCert.discovery] "Parsing argmin goal: ∃ x ∈ I, ∀ y ∈ I, f(x) ≤ f(y)"
+  trace[LeanCert.discovery] "Function expression: {funcExpr}"
+
+  -- Check if using native syntax (not Expr.eval)
+  let isNativeSyntax := !(← isExprEvalFunc funcExpr)
+  trace[LeanCert.discovery] "Using native syntax: {isNativeSyntax}"
+
+  -- 1. Reify the function
+  let ast ← getAstFromFunc funcExpr
+  trace[LeanCert.discovery] "Reified AST: {ast}"
+
+  -- 2. Prepare optimization config
+  let cfg : GuidedOptConfig := {
+    maxIterations := 1000,
+    tolerance := 1/1000,
+    taylorDepth := taylorDepth,
+    useMonotonicity := true,
+    heuristicSamples := 200,
+    seed := 12345,
+    useGridSearch := true,
+    gridPointsPerDim := 10
+  }
+
+  let domainExpr ←
+    match ← tryConvertSetIcc domainExpr with
+    | some intervalRat => pure intervalRat
+    | none => pure domainExpr
+  let domainVal ← evalExpr IntervalRat (mkConst ``IntervalRat) domainExpr
+  let boxVal : Box := [domainVal]
+  trace[LeanCert.discovery] "Domain: [{domainVal.lo}, {domainVal.hi}]"
+
+  -- 3. Run optimization to find the argmin (use minimize instead of maximize)
+  trace[LeanCert.discovery] "Running float-guided minimization..."
+  let astVal ← evalExpr LExpr (mkConst ``LeanCert.Core.Expr) ast
+  let result := globalMinimizeGuided astVal boxVal cfg
+
+  -- 4. Extract the midpoint of the best box as witness
+  let bestBox := result.bound.bestBox
+  let xOpt : ℚ := match bestBox with
+    | [I] => (I.lo + I.hi) / 2
+    | _ => domainVal.lo  -- Fallback
+
+  trace[LeanCert.discovery] "Best box: {bestBox.map (fun I => s!"[{I.lo}, {I.hi}]")}"
+  trace[LeanCert.discovery] "Witness point: x = {xOpt}"
+  trace[LeanCert.discovery] "Minimum value ≈ {result.bound.lo}"
+
+  -- 5. Evaluate f at xOpt to get a concrete upper bound
+  -- We use the upper bound of interval evaluation at the point as our transitivity constant
+  let evalCfg : EvalConfig := { taylorDepth := taylorDepth }
+  let pointInterval : IntervalRat := ⟨xOpt, xOpt, le_refl xOpt⟩
+  let fAtXOpt := evalIntervalCore1 astVal pointInterval evalCfg
+  let cBound := fAtXOpt.hi  -- c such that f(xOpt) ≤ c
+
+  trace[LeanCert.discovery] "f(xOpt) ∈ [{fAtXOpt.lo}, {fAtXOpt.hi}]"
+  trace[LeanCert.discovery] "Using bound c = {cBound} for transitivity"
+
+  -- 6. Check that ∀ y ∈ I, c ≤ f(y) (lower bound check)
+  let lowerOk := LeanCert.Validity.checkLowerBound astVal domainVal cBound evalCfg
+  trace[LeanCert.discovery] "checkLowerBound: {lowerOk}"
+
+  -- 7. Check that f(xOpt) ≤ c (point upper bound check)
+  let pointOk := LeanCert.Validity.checkPointUpperBound astVal xOpt cBound evalCfg
+  trace[LeanCert.discovery] "checkPointUpperBound: {pointOk}"
+
+  if !lowerOk || !pointOk then
+    throwError "interval_argmin: Bound verification failed.\n\
+      • checkLowerBound (∀ y ∈ I, {cBound} ≤ f(y)): {lowerOk}\n\
+      • checkPointUpperBound (f({xOpt}) ≤ {cBound}): {pointOk}\n\
+      Try increasing Taylor depth or using a different witness."
+
+  -- 8. Generate support proof
+  let suppProof ← LeanCert.Meta.mkSupportedCoreProof ast
+
+  -- 9. Provide witness: refine ⟨xOpt, ?memProof, ?boundProof⟩
+  let xOptExpr := toExpr xOpt
+  let xOptSyntax ← Term.exprToSyntax xOptExpr
+  evalTactic (← `(tactic| refine ⟨(($xOptSyntax : ℚ) : ℝ), ?_, ?_⟩))
+
+  -- 10. Prove membership (x ∈ I)
+  trace[LeanCert.discovery] "Proving membership..."
+  try
+    let memGoal ← getMainGoal
+    let memType ← memGoal.getType
+    let memTypeWhnf ← whnf memType
+    match_expr memTypeWhnf with
+    | And _ _ =>
+      let memTypeWhnfSyntax ← Term.exprToSyntax memTypeWhnf
+      evalTactic (← `(tactic| change $memTypeWhnfSyntax))
+      evalTactic (← `(tactic| constructor <;> norm_cast))
+    | _ =>
+      match_expr memType with
+      | Membership.mem _ _ _ interval _xExpr =>
+        let intervalSyntax ← Term.exprToSyntax interval
+        evalTactic (← `(tactic| simp [($intervalSyntax:term), Set.mem_Icc]))
+      | _ =>
+        evalTactic (← `(tactic| simp [Set.mem_Icc]))
+      if (← getGoals).isEmpty then
+        pure ()
+      else
+        let memGoal ← getMainGoal
+        let memType ← memGoal.getType
+        match_expr memType with
+        | And _ _ =>
+          evalTactic (← `(tactic| constructor <;> norm_cast))
+        | _ =>
+          evalTactic (← `(tactic| norm_cast))
+  catch _ =>
+    try
+      evalTactic (← `(tactic| decide))
+    catch _ =>
+      logWarning m!"Could not automatically prove {xOpt} ∈ [{domainVal.lo}, {domainVal.hi}]. Goal left open."
+      return
+
+  -- 11. Prove the bound: ∀ y ∈ I, f(xOpt) ≤ f(y)
+  trace[LeanCert.discovery] "Proving universal bound..."
+
+  if isNativeSyntax then
+    -- For native syntax, simplify and use intervalBoundCore directly
+    trace[LeanCert.discovery] "Using native syntax path with intervalBoundCore"
+    try
+      -- First, simplify the goal to reduce f(xOpt) to a concrete form
+      try evalTactic (← `(tactic| simp only [Rat.cast_intCast, Rat.cast_natCast])) catch _ => pure ()
+      try evalTactic (← `(tactic| push_cast)) catch _ => pure ()
+      try evalTactic (← `(tactic| norm_num [Rat.divInt_eq_div])) catch _ => pure ()
+
+      -- Now call intervalBoundCore on the simplified goal
+      LeanCert.Tactic.Auto.intervalBoundCore taylorDepth
+      trace[LeanCert.discovery] "✓ Proof complete (native syntax)"
+    catch e =>
+      throwError "interval_argmin: Could not prove universal bound.\n\
+        Error: {e.toMessageData}\n\
+        The witness x = {xOpt} may need higher precision."
+  else
+    -- For Expr.eval syntax, use verify_argmin
+    trace[LeanCert.discovery] "Using verify_argmin path"
+    try
+      -- Build the proof term using verify_argmin
+      let astSyntax ← Term.exprToSyntax ast
+      let suppSyntax ← Term.exprToSyntax suppProof
+      let domainSyntax ← Term.exprToSyntax domainExpr
+      let cBoundExpr := toExpr cBound
+      let cBoundSyntax ← Term.exprToSyntax cBoundExpr
+      let cfgExpr ← mkAppM ``EvalConfig.mk #[toExpr taylorDepth]
+      let cfgSyntax ← Term.exprToSyntax cfgExpr
+
+      -- Membership proof for xOpt
+      evalTactic (← `(tactic|
+        apply LeanCert.Validity.verify_argmin $astSyntax $suppSyntax $domainSyntax $xOptSyntax $cBoundSyntax $cfgSyntax
+          ?_ (by native_decide) (by native_decide)))
+
+      -- Prove xOpt ∈ I
+      if !(← getGoals).isEmpty then
+        evalTactic (← `(tactic| constructor <;> norm_cast))
+
+      trace[LeanCert.discovery] "✓ Proof complete"
+    catch e =>
+      -- Fallback to intervalBoundCore
+      trace[LeanCert.discovery] "verify_argmin failed, trying intervalBoundCore fallback..."
+      try
+        LeanCert.Tactic.Auto.intervalBoundCore taylorDepth
+        trace[LeanCert.discovery] "✓ Proof complete (via fallback)"
+      catch e2 =>
+        throwError "interval_argmin: Could not prove universal bound.\n\
+          Primary method (verify_argmin): {e.toMessageData}\n\
+          Fallback method (intervalBoundCore): {e2.toMessageData}\n\
+          The witness x = {xOpt} may need higher precision."
+
+/-- The interval_argmin tactic.
+
+Proves goals of the form `∃ x ∈ I, ∀ y ∈ I, f(x) ≤ f(y)` by:
+1. Running global optimization to find the point x where f is minimized.
+2. Instantiating the existential with x.
+3. Proving membership x ∈ I.
+4. Proving the universal bound using interval arithmetic.
+-/
 syntax (name := intervalArgminTac) "interval_argmin" (num)? : tactic
 
 @[tactic intervalArgminTac]

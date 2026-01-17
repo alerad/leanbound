@@ -185,6 +185,76 @@ theorem verify_bounds (e : Expr) (hsupp : ExprSupportedCore e)
   exact ⟨verify_lower_bound e hsupp I lo cfg h_cert.1 x hx,
          verify_upper_bound e hsupp I hi cfg h_cert.2 x hx⟩
 
+/-! ### Argmax/Argmin Verification
+
+These theorems support proving `∀ y ∈ I, f(y) ≤ f(x)` (argmax) and
+`∀ y ∈ I, f(x) ≤ f(y)` (argmin) via a concrete rational bound.
+-/
+
+/-- Check that evaluating f at a point x gives a value ≥ c.
+    We evaluate on the point interval [x, x] and check the lower bound.
+    This gives us c ≤ f(x) when x is rational. -/
+def checkPointLowerBound (e : Expr) (x c : ℚ) (cfg : EvalConfig) : Bool :=
+  let Ipt : IntervalRat := ⟨x, x, le_refl x⟩
+  decide (c ≤ (evalIntervalCore1 e Ipt cfg).lo)
+
+/-- Check that evaluating f at a point x gives a value ≤ c. -/
+def checkPointUpperBound (e : Expr) (x c : ℚ) (cfg : EvalConfig) : Bool :=
+  let Ipt : IntervalRat := ⟨x, x, le_refl x⟩
+  decide ((evalIntervalCore1 e Ipt cfg).hi ≤ c)
+
+/-- Verify that c ≤ f(x) at a specific point x. -/
+theorem verify_point_lower_bound (e : Expr) (hsupp : ExprSupportedCore e)
+    (x c : ℚ) (cfg : EvalConfig)
+    (h_cert : checkPointLowerBound e x c cfg = true) :
+    c ≤ Expr.eval (fun _ => (x : ℝ)) e := by
+  simp only [checkPointLowerBound, decide_eq_true_eq] at h_cert
+  let Ipt : IntervalRat := ⟨x, x, le_refl x⟩
+  have hx_mem : (x : ℝ) ∈ Ipt := ⟨le_refl _, le_refl _⟩
+  exact exprCore_ge_of_interval_lo e hsupp Ipt c cfg h_cert (x : ℝ) hx_mem
+
+/-- Verify that f(x) ≤ c at a specific point x. -/
+theorem verify_point_upper_bound (e : Expr) (hsupp : ExprSupportedCore e)
+    (x c : ℚ) (cfg : EvalConfig)
+    (h_cert : checkPointUpperBound e x c cfg = true) :
+    Expr.eval (fun _ => (x : ℝ)) e ≤ c := by
+  simp only [checkPointUpperBound, decide_eq_true_eq] at h_cert
+  let Ipt : IntervalRat := ⟨x, x, le_refl x⟩
+  have hx_mem : (x : ℝ) ∈ Ipt := ⟨le_refl _, le_refl _⟩
+  exact exprCore_le_of_interval_hi e hsupp Ipt c cfg h_cert (x : ℝ) hx_mem
+
+/-- **Argmax Verification Theorem**
+
+    Proves `∀ y ∈ I, f(y) ≤ f(x)` (x is a maximizer) by:
+    1. Checking that `∀ y ∈ I, f(y) ≤ c` (the max over I is at most c)
+    2. Checking that `c ≤ f(x)` (the value at x is at least c)
+    This implies `f(y) ≤ c ≤ f(x)` by transitivity. -/
+theorem verify_argmax (e : Expr) (hsupp : ExprSupportedCore e)
+    (I : IntervalRat) (x c : ℚ) (cfg : EvalConfig) (_hx : (x : ℝ) ∈ I)
+    (h_upper : checkUpperBound e I c cfg = true)
+    (h_point : checkPointLowerBound e x c cfg = true) :
+    ∀ y ∈ I, Expr.eval (fun _ => y) e ≤ Expr.eval (fun _ => (x : ℝ)) e := by
+  intro y hy
+  have h1 : Expr.eval (fun _ => y) e ≤ c := verify_upper_bound e hsupp I c cfg h_upper y hy
+  have h2 : c ≤ Expr.eval (fun _ => (x : ℝ)) e := verify_point_lower_bound e hsupp x c cfg h_point
+  exact le_trans h1 h2
+
+/-- **Argmin Verification Theorem**
+
+    Proves `∀ y ∈ I, f(x) ≤ f(y)` (x is a minimizer) by:
+    1. Checking that `∀ y ∈ I, c ≤ f(y)` (the min over I is at least c)
+    2. Checking that `f(x) ≤ c` (the value at x is at most c)
+    This implies `f(x) ≤ c ≤ f(y)` by transitivity. -/
+theorem verify_argmin (e : Expr) (hsupp : ExprSupportedCore e)
+    (I : IntervalRat) (x c : ℚ) (cfg : EvalConfig) (_hx : (x : ℝ) ∈ I)
+    (h_lower : checkLowerBound e I c cfg = true)
+    (h_point : checkPointUpperBound e x c cfg = true) :
+    ∀ y ∈ I, Expr.eval (fun _ => (x : ℝ)) e ≤ Expr.eval (fun _ => y) e := by
+  intro y hy
+  have h1 : Expr.eval (fun _ => (x : ℝ)) e ≤ c := verify_point_upper_bound e hsupp x c cfg h_point
+  have h2 : c ≤ Expr.eval (fun _ => y) e := verify_lower_bound e hsupp I c cfg h_lower y hy
+  exact le_trans h1 h2
+
 /-! ### ExprSupportedWithInv bounds
 
 Support for expressions with inv, log, atan, arsinh, atanh. These use the
