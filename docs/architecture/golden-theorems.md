@@ -231,3 +231,119 @@ find_bounds(x²+sin(x), [0,1])
                                        ▼
                                   ∀ x ∈ [0,1], x² + sin(x) ≤ 2
 ```
+
+## Real-World Examples
+
+The `examples/` folder contains complete working examples demonstrating LeanCert on real-world problems from various domains.
+
+### Number Theory: √2 (`examples/Sqrt2.lean`)
+
+Proves existence, uniqueness, and arbitrary-precision bounds for √2:
+
+```lean
+-- Existence via IVT (sign change)
+theorem sqrt2_exists : ∃ x ∈ I12, x * x - 2 = 0 := by
+  interval_roots
+
+-- Uniqueness via Newton contraction
+theorem sqrt2_unique : ∃! x, x ∈ I12 ∧ x * x - 2 = 0 := by
+  interval_unique_root
+
+-- 9 decimal places of precision
+theorem sqrt2_9_decimals : ∃ x ∈ ⟨1414213562/1000000000, 1414213563/1000000000, _⟩,
+    x * x - 2 = 0 := by
+  interval_roots
+```
+
+### ML Safety: Neural Network Verification (`examples/NeuralNet.lean`)
+
+Demonstrates interval propagation through neural networks:
+
+```lean
+def simpleNet : TwoLayerNet where
+  layer1 := ⟨[[1, 1], [1, -1]], [0, 0]⟩
+  layer2 := ⟨[[1, 1]], [0]⟩
+
+-- Compute certified output bounds for input region
+def outputBounds : IntervalVector :=
+  TwoLayerNet.forwardInterval simpleNet inputRegion (-53)
+```
+
+### Control Theory: Lyapunov Stability (`examples/Lyapunov.lean`)
+
+Proves energy dissipation for a damped harmonic oscillator:
+
+```lean
+-- V̇ = -2ζωₙv² ≤ 0 proves stability
+theorem energy_derivative_nonpositive :
+    ∀ v ∈ Set.Icc (-1:ℝ) 1, -2/5 * v * v ≤ (0 : ℝ) := by
+  -- Split domain to handle dependency problem
+  intro v ⟨hlo, hhi⟩
+  by_cases h : v ≥ 0
+  · have := energy_derivative_on_positive v ⟨h, hhi⟩; linarith
+  · have := energy_derivative_on_negative v ⟨hlo, le_of_lt (not_le.mp h)⟩; linarith
+```
+
+**Key technique**: Domain splitting to handle the dependency problem (IA computes `v*v` on `[-1,1]` as `[-1,1]` instead of `[0,1]`).
+
+### Finance: Black-Scholes Bounds (`examples/BlackScholes.lean`)
+
+Proves bounds on option pricing components:
+
+```lean
+-- Discount factor: e^(-rT) bounds for risk-free rate
+theorem discount_factor_lower :
+    ∀ r ∈ Set.Icc (-6/100 : ℝ) (-4/100), (94/100 : ℚ) ≤ Real.exp r := by
+  certify_bound
+
+-- Log-moneyness for near-ATM options
+theorem log_moneyness_upper :
+    ∀ x ∈ Set.Icc (9/10 : ℝ) (11/10), Real.log x ≤ (10/100 : ℚ) := by
+  certify_bound
+
+-- Gaussian core for vega calculation
+theorem gaussian_core_upper :
+    ∀ x ∈ Set.Icc (0:ℝ) 2, Real.exp (-x * x / 2) ≤ (1 : ℚ) := by
+  certify_bound
+```
+
+### Physics: Projectile Motion (`examples/Projectile.lean`)
+
+Proves bounds on projectile dynamics with air resistance:
+
+```lean
+-- Drag acceleration: F_drag/m = k·v² ≤ 8.33 m/s²
+theorem drag_accel_upper :
+    ∀ v ∈ Set.Icc (0:ℝ) 50, 1/300 * v * v ≤ (25/3 : ℚ) := by
+  certify_bound
+
+-- Net acceleration with gravity and drag
+theorem net_accel_lower :
+    ∀ v ∈ Set.Icc (0:ℝ) 50, (7/5 : ℚ) ≤ 49/5 - 1/300 * v * v := by
+  certify_bound
+
+-- Exponential velocity decay
+theorem exp_decay_lower :
+    ∀ t ∈ Set.Icc (-1:ℝ) 0, (36/100 : ℚ) ≤ Real.exp t := by
+  certify_bound
+```
+
+### Running the Examples
+
+```bash
+# Test all examples
+for f in examples/*.lean; do lake env lean "$f"; done
+
+# Test a specific example
+lake env lean examples/Sqrt2.lean
+```
+
+### Lessons Learned
+
+| Issue | Solution |
+|-------|----------|
+| **Dependency problem** (`v*v` gives `[-1,1]` instead of `[0,1]`) | Split domain and prove separately on `[0,1]` and `[-1,0]` |
+| **Rational cast errors** (`(2/5 : ℚ)` in expressions) | Use plain fractions: `2/5` without type annotation |
+| **Taylor overflow on wide intervals** (sin/cos) | Use narrower intervals or accept looser bounds |
+| **Division not computable** (`1/x` bounds) | Division bounds require `ExprSupportedWithInv`, not pure `native_decide` |
+| **Discovery command syntax** | Use `#bounds (fun x => ...) on [a, b]` with integer endpoints |
