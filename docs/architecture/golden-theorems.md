@@ -16,7 +16,11 @@ The key insight is that the checker runs in the Lean kernel using computable rat
 
 ## Core Theorems
 
-All Golden Theorems are defined in `Validity/Bounds.lean`.
+Golden Theorems are defined across multiple files:
+- `Validity/Bounds.lean` - Rational arithmetic (default)
+- `Validity/DyadicBounds.lean` - Dyadic arithmetic (fast)
+- `Validity/AffineBounds.lean` - Affine arithmetic (tight bounds)
+- `Validity/Monotonicity.lean` - Monotonicity via automatic differentiation
 
 ### Bound Verification
 
@@ -74,6 +78,43 @@ theorem verify_integral_bound (e : Expr) (hsupp : ExprSupportedCore e)
     ∫ x in I.lo..I.hi, Expr.eval (fun _ => x) e ≤ hi
 ```
 
+### Monotonicity
+
+Prove monotonicity properties using automatic differentiation with interval arithmetic.
+
+| Goal | Theorem | Checker |
+|------|---------|---------|
+| Strictly increasing | `verify_strictly_increasing` | `checkStrictlyIncreasing` |
+| Strictly decreasing | `verify_strictly_decreasing` | `checkStrictlyDecreasing` |
+| Monotone (weak) | `verify_monotone` | `checkStrictlyIncreasing` |
+| Antitone (weak) | `verify_antitone` | `checkStrictlyDecreasing` |
+
+```lean
+theorem verify_strictly_increasing (e : Expr) (hsupp : ExprSupported e)
+    (I : IntervalRat) (cfg : EvalConfig)
+    (h_check : checkStrictlyIncreasing e I cfg = true) :
+    StrictMonoOn (fun x => Expr.eval (fun _ => x) e) (Set.Icc I.lo I.hi)
+```
+
+The approach uses automatic differentiation to compute interval bounds on derivatives:
+1. Compute `dI := derivIntervalCore e I cfg` (interval containing all derivatives)
+2. If `dI.lo > 0`, then f'(x) > 0 for all x ∈ I, so f is strictly increasing
+3. If `dI.hi < 0`, then f'(x) < 0 for all x ∈ I, so f is strictly decreasing
+
+The mathematical foundation is the Mean Value Theorem: if f' has consistent sign, then f is monotonic.
+
+**Example:**
+```lean
+-- Prove exp is strictly increasing on [0, 1]
+theorem exp_strictly_increasing :
+    StrictMonoOn (fun x => Real.exp x) (Set.Icc 0 1) := by
+  have h := verify_strictly_increasing (Expr.exp (Expr.var 0))
+    (ExprSupported.exp (ExprSupported.var 0))
+    ⟨0, 1, by norm_num⟩ {} (by native_decide)
+  simp only [Expr.eval_exp, Expr.eval_var] at h
+  convert h using 2 <;> simp
+```
+
 ## Expression Support Tiers
 
 Not all expressions support all theorems.
@@ -94,27 +135,23 @@ Extended support including partial functions:
 
 These require `evalInterval?` which may return `none` if domain constraints are violated.
 
-## Dyadic Backend
+## Arithmetic Backends
 
-For deep expressions, the dyadic evaluator provides the same correctness guarantees:
+LeanCert provides three arithmetic backends, each with different tradeoffs:
 
-```lean
-theorem evalIntervalDyadic_correct (e : Expr) (hsupp : ExprSupportedCore e)
-    (ρ_real : Nat → ℝ) (ρ_dyad : IntervalDyadicEnv)
-    (hρ : envMemDyadic ρ_real ρ_dyad) (cfg : DyadicConfig) :
-    Expr.eval ρ_real e ∈ evalIntervalDyadic e ρ_dyad cfg
-```
+| Backend | File | Speed | Precision | Best For |
+|---------|------|-------|-----------|----------|
+| **Rational** | `Validity/Bounds.lean` | Slow | Exact | Small expressions, reproducibility |
+| **Dyadic** | `Validity/DyadicBounds.lean` | Fast | Fixed-precision | Deep expressions, neural networks |
+| **Affine** | `Validity/AffineBounds.lean` | Medium | Correlation-aware | Dependency-heavy expressions |
 
-The dyadic backend avoids denominator explosion by using fixed-precision arithmetic, making it essential for neural network verification and optimization loops.
+### Rational Backend (Default)
 
-## Dyadic Kernel Verification
+The standard backend using arbitrary-precision rationals. Guarantees exact intermediate results but can suffer from denominator explosion on deep expressions.
 
-For higher trust, the dyadic backend supports verification via `decide` instead of `native_decide`:
+### Dyadic Backend
 
-| Theorem | Verification | Trust Level |
-|---------|--------------|-------------|
-| `verify_upper_bound_dyadic` | `decide` | Kernel only |
-| `verify_lower_bound_dyadic` | `decide` | Kernel only |
+Uses fixed-precision dyadic numbers (m · 2^e) to avoid denominator explosion:
 
 ```lean
 theorem verify_upper_bound_dyadic (e : Expr) (hsupp : ExprSupportedCore e)
@@ -122,6 +159,52 @@ theorem verify_upper_bound_dyadic (e : Expr) (hsupp : ExprSupportedCore e)
     (h_cert : checkUpperBoundDyadic e I c cfg = true) :
     ∀ x ∈ I, Expr.eval (fun _ => x) e ≤ c
 ```
+
+Key parameters:
+- `prec : Int` - Precision (negative = more precision, must be ≤ 0)
+- `depth : Nat` - Taylor series depth for transcendentals
+
+Essential for neural network verification and optimization loops where expression depth can be in the hundreds.
+
+### Affine Backend
+
+Solves the "dependency problem" in interval arithmetic by tracking linear correlations:
+
+```lean
+theorem verify_upper_bound_affine1 (e : Expr) (hsupp : ExprSupportedCore e)
+    (I : IntervalRat) (c : ℚ) (cfg : AffineConfig)
+    (h_cert : checkUpperBoundAffine1 e I c cfg = true)
+    (hvalid : domainValidAt e (fun _ => I)) :
+    ∀ x ∈ I, Expr.eval (fun _ => x) e ≤ c
+```
+
+Affine arithmetic represents values as `x̂ = c₀ + Σᵢ cᵢ·εᵢ + [-r, r]` where εᵢ ∈ [-1, 1] are noise symbols. This means:
+
+- Standard IA: `x - x` on `[-1, 1]` → `[-2, 2]` (pessimistic)
+- Affine AA: `x - x` on `[-1, 1]` → `[0, 0]` (exact)
+
+Use affine when the same variable appears multiple times in an expression.
+
+## Backend Theorems Summary
+
+| Goal | Rational | Dyadic | Affine |
+|------|----------|--------|--------|
+| Upper bound | `verify_upper_bound` | `verify_upper_bound_dyadic` | `verify_upper_bound_affine1` |
+| Lower bound | `verify_lower_bound` | `verify_lower_bound_dyadic` | `verify_lower_bound_affine1` |
+
+Each backend also provides `'` variants for `ExprSupported` expressions where domain validity is automatic:
+- `verify_upper_bound_dyadic'`
+- `verify_lower_bound_affine1'`
+- etc.
+
+## Kernel Verification
+
+For higher trust, the dyadic backend supports verification via `decide` instead of `native_decide`:
+
+| Theorem | Verification | Trust Level |
+|---------|--------------|-------------|
+| `verify_upper_bound_dyadic` | `decide` | Kernel only |
+| `verify_lower_bound_dyadic` | `decide` | Kernel only |
 
 This removes the compiler from the trusted computing base—only the Lean kernel must be trusted.
 

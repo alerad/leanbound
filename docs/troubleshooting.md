@@ -56,23 +56,24 @@ with the goal
 
 **Cause:** The tactic reified your expression to an `Expr` AST, but it doesn't match the goal syntactically.
 
-**This happens with:**
-- Numeric literals with type inference issues: `2 * x` vs `(2 : ℚ) * x`
-- Power notation: `x^3` reifies differently than `x * x * x`
-- Complex coefficient expressions
+> **Note:** As of v1.2, most cases are now handled automatically. Expressions with numeric coefficients like `2 * x * x + 3 * x + 1` should work out of the box. If you still encounter this error, try the solutions below.
+
+**This may still happen with:**
+- Very complex nested coefficient expressions
+- Custom definitions that aren't unfolded
+- Unusual type coercions
 
 **Solutions:**
 
-1. **Use simpler syntax:**
+1. **First, just try it** - most expressions now work:
    ```lean
-   -- Instead of
-   example : ∀ x ∈ I, 2 * x * x + 3 * x + 1 ≤ 6 := by certify_bound  -- May fail
-
-   -- Try multiplication form
-   example : ∀ x ∈ I, x * x ≤ 1 := by certify_bound  -- Works
+   -- These all work now:
+   example : ∀ x ∈ I, 2 * x * x + 3 * x + 1 ≤ 6 := by certify_bound  -- ✓
+   example : ∀ x ∈ I, x * x - x + 1 ≤ 2 := by certify_bound           -- ✓
+   example : ∀ x ∈ I, 2 * Real.sin x + x * x ≤ 3 := by certify_bound  -- ✓
    ```
 
-2. **Build the Expr AST explicitly:**
+2. **If it still fails, build the Expr AST explicitly:**
    ```lean
    open LeanCert.Core
 
