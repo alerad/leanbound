@@ -175,6 +175,15 @@ noncomputable def log? (tm : TaylorModel) (degree : ℕ) : Option TaylorModel :=
            domain := tm.domain }
   | none => none
 
+/-- Interval-based sqrt composition.
+    Given a TM for the argument, returns a TM that bounds sqrt of the argument.
+    Uses sqrtIntervalTight for the interval bound. -/
+noncomputable def sqrt? (tm : TaylorModel) : Option TaylorModel :=
+  some { poly := 0
+         remainder := IntervalRat.sqrtIntervalTight tm.bound
+         center := tm.center
+         domain := tm.domain }
+
 /-- Check if an interval is safe for atanh: max(|lo|, |hi|) ≤ 99/100.
     This ensures we're away from the singularities at ±1. -/
 def atanhSafe (I : IntervalRat) : Bool :=
@@ -264,7 +273,9 @@ noncomputable def fromExpr (e : Expr) (domain : IntervalRat) (degree : ℕ) : Ta
   | Expr.sinh e => sinh (fromExpr e domain degree) degree
   | Expr.cosh e => cosh (fromExpr e domain degree) degree
   | Expr.tanh e => tanh (fromExpr e domain degree) degree
-  | Expr.sqrt _ => const 0 domain  -- Fallback for sqrt (not yet supported)
+  | Expr.sqrt e =>
+      -- sqrt? always succeeds, so we can safely extract
+      (sqrt? (fromExpr e domain degree)).getD (const 0 domain)
   | Expr.pi =>
       -- Pi is represented as a constant Taylor model with the pi interval as remainder
       -- We use the pi interval [3.14, 3.15] which encloses Real.pi
@@ -329,7 +340,9 @@ noncomputable def fromExpr? (e : Expr) (domain : IntervalRat) (degree : ℕ) :
   | Expr.tanh e => do
       let tm ← fromExpr? e domain degree
       pure <| tanh tm degree
-  | Expr.sqrt _ => none  -- Not supported: sqrt evalSet proof incomplete
+  | Expr.sqrt e => do
+      let tm ← fromExpr? e domain degree
+      sqrt? tm
   | Expr.pi =>
       -- Pi is a constant Taylor model with pi interval as remainder
       some { poly := 0
@@ -481,9 +494,16 @@ theorem fromExpr?_center (e : Expr) (domain : IntervalRat) (degree : ℕ)
         simp [TaylorModel.fromExpr?, h0] at h
         cases h
         simp [TaylorModel.tanh, ih degree tm0 h0]
-  | sqrt _ _ =>
+  | sqrt e ih =>
       intro tm h
-      simp [TaylorModel.fromExpr?] at h
+      cases h0 : TaylorModel.fromExpr? e domain degree with
+      | none => simp [TaylorModel.fromExpr?, h0] at h
+      | some tm0 =>
+        simp [TaylorModel.fromExpr?, h0] at h
+        unfold TaylorModel.sqrt? at h
+        simp only [Option.some.injEq] at h
+        cases h
+        exact ih degree tm0 h0
   | pi =>
       intro tm h
       simp [TaylorModel.fromExpr?] at h
@@ -893,9 +913,16 @@ theorem fromExpr?_domain (e : Expr) (domain : IntervalRat) (degree : ℕ)
       | none => simp [TaylorModel.fromExpr?, h0] at h
       | some tm0 =>
         simp [TaylorModel.fromExpr?, h0] at h; cases h; simp [TaylorModel.tanh, ih degree tm0 h0]
-  | sqrt _ _ =>
+  | sqrt e ih =>
       intro tm h
-      simp [TaylorModel.fromExpr?] at h
+      cases h0 : TaylorModel.fromExpr? e domain degree with
+      | none => simp [TaylorModel.fromExpr?, h0] at h
+      | some tm0 =>
+        simp [TaylorModel.fromExpr?, h0] at h
+        unfold TaylorModel.sqrt? at h
+        simp only [Option.some.injEq] at h
+        cases h
+        exact ih degree tm0 h0
   | pi =>
       intro tm h
       simp [TaylorModel.fromExpr?] at h
@@ -1114,8 +1141,25 @@ theorem fromExpr_evalSet_correct (e : Expr) (domain : IntervalRat) (degree : ℕ
         have hx0 : x ∈ tm0.domain := hd0 ▸ hx
         exact TaylorModel.tanh_evalSet_correct (fun y => Expr.eval (fun _ => y) e) tm0 degree
           (hd0.symm ▸ ih degree tm0 h0) x hx0
-  | sqrt _ _ =>
-      simp [TaylorModel.fromExpr?] at h
+  | sqrt e ih =>
+      cases h0 : TaylorModel.fromExpr? e domain degree with
+      | none => simp [TaylorModel.fromExpr?, h0] at h
+      | some tm0 =>
+        simp [TaylorModel.fromExpr?, h0] at h
+        unfold TaylorModel.sqrt? at h
+        simp only [Option.some.injEq] at h
+        subst h
+        have hd0 := fromExpr?_domain e domain degree tm0 h0
+        intro x hx
+        simp only [Expr.eval_sqrt]
+        have hx0 : x ∈ tm0.domain := hd0 ▸ hx
+        have h_arg_in_bound : Expr.eval (fun _ => x) e ∈ tm0.bound :=
+          taylorModel_correct tm0 (fun y => Expr.eval (fun _ => y) e) (hd0.symm ▸ ih degree tm0 h0) x hx0
+        simp only [TaylorModel.evalSet, Set.mem_setOf_eq]
+        refine ⟨Real.sqrt (Expr.eval (fun _ => x) e), ?_, ?_⟩
+        · -- sqrt of argument is in sqrtIntervalTight
+          exact IntervalRat.mem_sqrtIntervalTight' h_arg_in_bound
+        · simp only [Polynomial.aeval_zero]; ring
   | pi =>
       simp [TaylorModel.fromExpr?] at h
       cases h
