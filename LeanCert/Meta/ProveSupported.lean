@@ -212,7 +212,7 @@ on the structure of `e : LeanCert.Core.Expr`.
     This function inspects the head constant of the AST expression and
     recursively builds the appropriate proof constructor.
 
-    Supported: const, var, add, mul, neg, sin, cos, exp, log, sqrt, sinh, cosh, tanh, pi
+    Supported: const, var, add, mul, neg, sin, cos, exp, log, sqrt, sinh, cosh, tanh, erf, pi
     Not supported: inv, atan, arsinh, atanh -/
 partial def mkSupportedCoreProof (e_ast : Lean.Expr) : MetaM Lean.Expr := do
   -- Get the head constant and arguments
@@ -299,6 +299,12 @@ partial def mkSupportedCoreProof (e_ast : Lean.Expr) : MetaM Lean.Expr := do
     let e := args[0]!
     let h ← mkSupportedCoreProof e
     mkAppM ``LeanCert.Core.ExprSupportedCore.tanh #[h]
+
+  else if fn.isConstOf ``LeanCert.Core.Expr.erf then
+    -- Expr.erf e => ExprSupportedCore.erf h
+    let e := args[0]!
+    let h ← mkSupportedCoreProof e
+    mkAppM ``LeanCert.Core.ExprSupportedCore.erf #[h]
 
   else if fn.isConstOf ``LeanCert.Core.Expr.pi then
     -- Expr.pi => ExprSupportedCore.pi

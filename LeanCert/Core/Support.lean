@@ -14,7 +14,7 @@ different interval evaluation strategies.
 ## Main definitions
 
 * `ExprSupportedCore` - Predicate for expressions in the computable subset
-  (const, var, add, mul, neg, sin, cos, exp, log, sqrt, sinh, cosh, tanh, pi)
+  (const, var, add, mul, neg, sin, cos, exp, log, sqrt, sinh, cosh, tanh, erf, pi)
 
 * `ExprSupported` - Predicate for the noncomputable AD subset
   (const, var, add, mul, neg, sin, cos, exp)
@@ -39,7 +39,7 @@ open LeanCert.Core
 /-! ### Core supported expression subset (computable) -/
 
 /-- Predicate indicating an expression is in the computable core subset.
-    Supports: const, var, add, mul, neg, sin, cos, exp, log, sqrt, sinh, cosh, tanh, pi
+    Supports: const, var, add, mul, neg, sin, cos, exp, log, sqrt, sinh, cosh, tanh, erf, pi
 
     Note: log requires positive domain for correctness. The correctness theorem
     `evalIntervalCore_correct` has an additional hypothesis `evalDomainValid`
@@ -60,6 +60,7 @@ inductive ExprSupportedCore : Expr → Prop where
   | sinh {e : Expr} : ExprSupportedCore e → ExprSupportedCore (Expr.sinh e)
   | cosh {e : Expr} : ExprSupportedCore e → ExprSupportedCore (Expr.cosh e)
   | tanh {e : Expr} : ExprSupportedCore e → ExprSupportedCore (Expr.tanh e)
+  | erf {e : Expr} : ExprSupportedCore e → ExprSupportedCore (Expr.erf e)
   | pi : ExprSupportedCore Expr.pi
 
 /-! ### Extended supported expression subset (with exp) -/

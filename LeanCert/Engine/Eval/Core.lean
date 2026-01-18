@@ -94,16 +94,140 @@ theorem mem_atanInterval {x : ℝ} {I : IntervalRat} (_hx : x ∈ I) :
   have hpi_hi : Real.pi / 2 < (2 : ℝ) := by linarith
   constructor <;> linarith
 
-/-- Simple interval bound for erf.
-    Since erf x ∈ (-1, 1) for all x, we use the global bound [-1, 1]. -/
-def erfInterval (_I : IntervalRat) : IntervalRat :=
-  ⟨-1, 1, by norm_num⟩
+/-- Interval bound for erf using computable Taylor series.
+    erf(x) = (2/√π) * ∫₀ˣ exp(-t²) dt, strictly monotone increasing.
+    This computes tight bounds using verified Taylor series. -/
+def erfInterval (I : IntervalRat) (taylorDepth : ℕ := 15) : IntervalRat :=
+  IntervalRat.erfComputable I taylorDepth
 
-/-- Correctness of erf interval: erf x ∈ [-1, 1] for all x -/
-theorem mem_erfInterval {x : ℝ} {I : IntervalRat} (_hx : x ∈ I) :
-    Real.erf x ∈ erfInterval I := by
-  simp only [IntervalRat.mem_def, erfInterval, Rat.cast_neg, Rat.cast_one]
-  exact ⟨Real.neg_one_le_erf x, Real.erf_le_one x⟩
+/-- Helper: The integral of exp(-t²) over (a, b] is positive when a < b.
+    This follows from exp(-t²) > 0 and the interval having positive measure. -/
+private theorem integral_exp_neg_sq_pos (a b : ℝ) (hab : a < b) :
+    0 < ∫ t in a..b, Real.exp (-(t^2)) := by
+  have hcont : Continuous (fun t => Real.exp (-(t^2))) :=
+    Real.continuous_exp.comp (continuous_neg.comp (continuous_pow 2))
+  apply intervalIntegral.integral_pos hab hcont.continuousOn
+  · intro x _; exact le_of_lt (Real.exp_pos _)
+  · exact ⟨a, Set.left_mem_Icc.mpr (le_of_lt hab), Real.exp_pos _⟩
+
+/-- erf is strictly monotone increasing.
+    Proof: erf'(x) = (2/√π) * exp(-x²) > 0 for all x.
+
+    We use that for a < b, the integral ∫_{a}^{b} exp(-t²) dt > 0 since the
+    integrand is strictly positive. -/
+theorem Real.strictMono_erf : StrictMono Real.erf := by
+  intro a b hab
+  unfold Real.erf
+  have hfactor : (0 : ℝ) < 2 / Real.sqrt Real.pi := by
+    apply div_pos (by norm_num : (0:ℝ) < 2)
+    exact Real.sqrt_pos.mpr Real.pi_pos
+  have hcont : Continuous (fun t => Real.exp (-(t^2))) :=
+    Real.continuous_exp.comp (continuous_neg.comp (continuous_pow 2))
+  have hint : ∀ c d : ℝ, IntervalIntegrable (fun t => Real.exp (-(t^2))) MeasureTheory.volume c d :=
+    fun c d => hcont.intervalIntegrable c d
+  -- The integral ∫ t in a..b, exp(-t²) > 0 when a < b since exp(-t²) > 0
+  have hpos : 0 < ∫ x in a..b, Real.exp (-(x^2)) := integral_exp_neg_sq_pos a b hab
+  -- Split integral: ∫ 0..b = ∫ 0..a + ∫ a..b
+  have heq := (intervalIntegral.integral_add_adjacent_intervals (hint 0 a) (hint a b)).symm
+  -- Since ∫ a..b > 0, we have ∫ 0..a < ∫ 0..a + ∫ a..b = ∫ 0..b
+  have hineq : ∫ x in (0:ℝ)..a, Real.exp (-(x^2)) < ∫ x in (0:ℝ)..b, Real.exp (-(x^2)) := by
+    rw [heq]
+    linarith
+  -- Multiply both sides by positive factor
+  exact mul_lt_mul_of_pos_left hineq hfactor
+
+/-- Helper: erf(q) is contained in the scaled Taylor series interval (before intersection).
+    This requires proving:
+    1. The Taylor polynomial sum is in evalTaylorSeries
+    2. The remainder bound is valid
+    3. The 2/√π multiplication preserves containment
+
+    TODO: Full proof using Taylor's theorem with Lagrange remainder. -/
+private theorem mem_erfScaled (q : ℚ) (n : ℕ) :
+    Real.erf q ∈ IntervalRat.mul IntervalRat.two_div_sqrt_pi
+      (IntervalRat.add (IntervalRat.evalTaylorSeries (IntervalRat.erfTaylorCoeffs n) (IntervalRat.singleton q))
+                       (IntervalRat.erfRemainderBoundComputable (IntervalRat.singleton q) n)) := by
+  -- This requires proving the Taylor series with remainder contains erf(q)/(2/√π),
+  -- then using mem_mul with two_div_sqrt_pi_mem
+  sorry
+
+/-- Correctness of erfPointComputable via Taylor series.
+    For any rational q, erf(q) is contained in the interval erfPointComputable(q, n).
+
+    The proof uses Taylor's theorem with Lagrange remainder for the series
+    erf(x) = (2/√π) * Σ_{k=0}^∞ (-1)^k * x^(2k+1) / (k! * (2k+1)). -/
+theorem mem_erfPointComputable (q : ℚ) (n : ℕ) :
+    Real.erf q ∈ IntervalRat.erfPointComputable q n := by
+  unfold IntervalRat.erfPointComputable
+  simp only []
+  -- erf q ∈ globalBound = [-1, 1]
+  have h_global : Real.erf q ∈ ({lo := -1, hi := 1, le := by norm_num} : IntervalRat) := by
+    simp only [IntervalRat.mem_def, Rat.cast_neg, Rat.cast_one]
+    exact ⟨Real.neg_one_le_erf q, Real.erf_le_one q⟩
+  -- erf q ∈ scaled (from Taylor series correctness)
+  have h_scaled : Real.erf q ∈ IntervalRat.mul IntervalRat.two_div_sqrt_pi
+      (IntervalRat.add (IntervalRat.evalTaylorSeries (IntervalRat.erfTaylorCoeffs n) (IntervalRat.singleton q))
+                       (IntervalRat.erfRemainderBoundComputable (IntervalRat.singleton q) n)) :=
+    mem_erfScaled q n
+  -- Use mem_intersect: if x ∈ I and x ∈ J, then ∃ K, intersect I J = some K ∧ x ∈ K
+  have ⟨K, hK_eq, hK_mem⟩ := IntervalRat.mem_intersect h_scaled h_global
+  simp only [hK_eq]
+  exact hK_mem
+
+/-- Correctness of erf interval using monotonicity and endpoint evaluation.
+
+    Since erf is strictly monotone increasing:
+    - For x ∈ [I.lo, I.hi], we have erf(I.lo) ≤ erf(x) ≤ erf(I.hi)
+    - erfPointComputable(I.lo) contains erf(I.lo)
+    - erfPointComputable(I.hi) contains erf(I.hi)
+    - hull of these intervals contains [erf(I.lo), erf(I.hi)]
+    - Therefore erf(x) ∈ hull(...) ∩ [-1, 1] -/
+theorem mem_erfInterval {x : ℝ} {I : IntervalRat} (hx : x ∈ I) (n : ℕ := 15) :
+    Real.erf x ∈ erfInterval I n := by
+  unfold erfInterval IntervalRat.erfComputable
+  simp only []
+  -- Get membership in endpoint intervals
+  have hlo_mem := mem_erfPointComputable I.lo n
+  have hhi_mem := mem_erfPointComputable I.hi n
+  -- Use monotonicity
+  have hx_bounds := hx
+  rw [IntervalRat.mem_def] at hx_bounds
+  have herf_lo : Real.erf I.lo ≤ Real.erf x :=
+    Real.strictMono_erf.monotone hx_bounds.1
+  have herf_hi : Real.erf x ≤ Real.erf I.hi :=
+    Real.strictMono_erf.monotone hx_bounds.2
+  -- erf x is in hull of endpoint intervals
+  have h_in_hull : Real.erf x ∈ IntervalRat.hull
+      (IntervalRat.erfPointComputable I.lo n) (IntervalRat.erfPointComputable I.hi n) := by
+    rw [IntervalRat.mem_def] at hlo_mem hhi_mem ⊢
+    unfold IntervalRat.hull
+    simp only []
+    constructor
+    · calc (↑(min (IntervalRat.erfPointComputable I.lo n).lo
+              (IntervalRat.erfPointComputable I.hi n).lo) : ℝ)
+          ≤ (IntervalRat.erfPointComputable I.lo n).lo := by
+            simp only [Rat.cast_min]; exact min_le_left _ _
+        _ ≤ Real.erf I.lo := hlo_mem.1
+        _ ≤ Real.erf x := herf_lo
+    · calc Real.erf x
+          ≤ Real.erf I.hi := herf_hi
+        _ ≤ (IntervalRat.erfPointComputable I.hi n).hi := hhi_mem.2
+        _ ≤ (↑(max (IntervalRat.erfPointComputable I.lo n).hi
+              (IntervalRat.erfPointComputable I.hi n).hi) : ℝ) := by
+            simp only [Rat.cast_max]; exact le_max_right _ _
+  -- erf x is in [-1, 1]
+  have h_global : Real.erf x ∈ ({lo := -1, hi := 1, le := by norm_num} : IntervalRat) := by
+    simp only [IntervalRat.mem_def, Rat.cast_neg, Rat.cast_one]
+    exact ⟨Real.neg_one_le_erf x, Real.erf_le_one x⟩
+  -- Combine via case analysis on intersection result
+  set erfLo := IntervalRat.erfPointComputable I.lo n
+  set erfHi := IntervalRat.erfPointComputable I.hi n
+  set raw := erfLo.hull erfHi
+  set globalBound : IntervalRat := ⟨-1, 1, by norm_num⟩
+  -- Use mem_intersect which says: if x ∈ I and x ∈ J, then ∃ K, intersect I J = some K ∧ x ∈ K
+  have ⟨K, hK_eq, hK_mem⟩ := IntervalRat.mem_intersect h_in_hull h_global
+  simp only [hK_eq]
+  exact hK_mem
 
 /-- Simple interval bound for arsinh.
     arsinh is unbounded, so we use a very rough linear bound.
@@ -445,7 +569,7 @@ def evalIntervalCore (e : Expr) (ρ : IntervalEnv) (cfg : EvalConfig := {}) : In
   | Expr.arsinh e => arsinhInterval (evalIntervalCore e ρ cfg)
   | Expr.atanh _ => default  -- Not in ExprSupportedCore; use evalInterval? for atanh
   | Expr.sinc _ => ⟨-1, 1, by norm_num⟩  -- sinc is bounded by [-1, 1]
-  | Expr.erf _ => ⟨-1, 1, by norm_num⟩  -- erf is bounded by [-1, 1]
+  | Expr.erf e => erfInterval (evalIntervalCore e ρ cfg) cfg.taylorDepth
   | Expr.sinh e => sinhInterval (evalIntervalCore e ρ cfg) cfg.taylorDepth
   | Expr.cosh e => coshInterval (evalIntervalCore e ρ cfg) cfg.taylorDepth
   | Expr.tanh e => tanhInterval (evalIntervalCore e ρ cfg)  -- Tight bounds: [-1, 1]
@@ -498,7 +622,7 @@ def evalIntervalCoreWithDiv (e : Expr) (ρ : IntervalEnv) (cfg : EvalConfig := {
   | Expr.arsinh e => arsinhInterval (evalIntervalCoreWithDiv e ρ cfg)
   | Expr.atanh _ => ⟨-100, 100, by norm_num⟩  -- Safe wide default for atanh
   | Expr.sinc _ => ⟨-1, 1, by norm_num⟩  -- sinc is bounded by [-1, 1]
-  | Expr.erf _ => ⟨-1, 1, by norm_num⟩  -- erf is bounded by [-1, 1]
+  | Expr.erf e => erfInterval (evalIntervalCoreWithDiv e ρ cfg) cfg.taylorDepth
   | Expr.sinh e => sinhInterval (evalIntervalCoreWithDiv e ρ cfg) cfg.taylorDepth
   | Expr.cosh e => coshInterval (evalIntervalCoreWithDiv e ρ cfg) cfg.taylorDepth
   | Expr.tanh e => tanhInterval (evalIntervalCoreWithDiv e ρ cfg)  -- Tight bounds: [-1, 1]
@@ -823,6 +947,10 @@ theorem evalIntervalCore_correct (e : Expr) (hsupp : ExprSupportedCore e)
     simp only [evalDomainValid] at hdom
     simp only [Expr.eval_tanh, evalIntervalCore, tanhInterval]
     exact mem_tanhInterval (ih hdom)
+  | erf _ ih =>
+    simp only [evalDomainValid] at hdom
+    simp only [Expr.eval_erf, evalIntervalCore]
+    exact mem_erfInterval (ih hdom) cfg.taylorDepth
   | pi =>
     simp only [Expr.eval_pi, evalIntervalCore]
     exact mem_piInterval

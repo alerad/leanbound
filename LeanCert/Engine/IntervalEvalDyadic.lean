@@ -353,6 +353,13 @@ theorem evalIntervalDyadic_correct (e : Expr) (hsupp : ExprSupportedCore e)
       rw [Real.sinh_eq, Real.cosh_eq]
       have h2 : Real.exp (-x) > 0 := Real.exp_pos (-x)
       linarith
+  | @erf e' _ ih =>
+    simp only [evalDomainValidDyadic] at hdom
+    simp only [Expr.eval_erf, evalIntervalDyadic, erfIntervalDyadic]
+    -- erf x ∈ [-1, 1] for all x
+    rw [IntervalDyadic.mem_def, Dyadic.toRat_ofInt, Dyadic.toRat_ofInt]
+    simp only [Int.cast_neg, Int.cast_one, Rat.cast_neg, Rat.cast_one]
+    exact ⟨Real.neg_one_le_erf _, Real.erf_le_one _⟩
   | log _ ih =>
     simp only [evalDomainValidDyadic] at hdom
     simp only [Expr.eval_log, evalIntervalDyadic, logIntervalDyadic]

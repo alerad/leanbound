@@ -288,6 +288,20 @@ theorem exprSupportedCore_continuousOn (e : LExpr) (hsupp : LeanCert.Engine.Expr
       rw [h]
       exact Real.continuous_sinh.div Real.continuous_cosh (fun x => ne_of_gt (Real.cosh_pos x))
     exact hcont.comp_continuousOn (ih hdom)
+  | erf _ ih =>
+    simp only [exprContinuousDomainValid] at hdom
+    simp only [LeanCert.Core.Expr.eval]
+    -- Real.erf is continuous (it's differentiable, and differentiable implies continuous)
+    have herf_cont : Continuous Real.erf := by
+      have hdiff : Differentiable ℝ Real.erf := by
+        unfold Real.erf
+        apply Differentiable.const_mul
+        intro y
+        have hcont : Continuous (fun t => Real.exp (-(t^2))) :=
+          Real.continuous_exp.comp (continuous_neg.comp (continuous_pow 2))
+        exact (hcont.integral_hasStrictDerivAt 0 y).differentiableAt
+      exact hdiff.continuous
+    exact herf_cont.comp_continuousOn (ih hdom)
   | @log arg _ ih =>
     simp only [exprContinuousDomainValid] at hdom
     simp only [LeanCert.Core.Expr.eval]

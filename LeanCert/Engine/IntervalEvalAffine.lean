@@ -258,6 +258,23 @@ theorem evalIntervalAffine_correct (e : Expr) (hsupp : ExprSupportedCore e)
     simp only [evalDomainValidAffine] at hdom
     simp only [Expr.eval_tanh, evalIntervalAffine]
     exact AffineForm.mem_tanh hvalid (ih hdom)
+  | @erf arg _ ih =>
+    simp only [evalDomainValidAffine] at hdom
+    -- erf returns trivial affine form { c0 := 0, coeffs := [], r := 1 } representing [-1, 1]
+    -- Just need to show Real.erf x ∈ [-1, 1]
+    simp only [Expr.eval_erf, evalIntervalAffine]
+    -- mem_affine requires: ∃ err, |err| ≤ r ∧ v = evalLinear af eps + err
+    -- For { c0 := 0, coeffs := [], r := 1 }, evalLinear is just 0
+    -- So we need: ∃ err, |err| ≤ 1 ∧ erf(x) = err
+    -- Take err = erf(x), then need |erf(x)| ≤ 1
+    show AffineForm.mem_affine { c0 := 0, coeffs := [], r := 1, r_nonneg := _ } eps _
+    unfold AffineForm.mem_affine AffineForm.evalLinear AffineForm.linearSum
+    simp only [List.zipWith_nil_left, List.sum_nil, Rat.cast_zero, zero_add, Rat.cast_one]
+    use Real.erf (Expr.eval ρ_real arg)
+    constructor
+    · rw [abs_le]
+      exact ⟨Real.neg_one_le_erf _, Real.erf_le_one _⟩
+    · ring
   | sqrt _ ih =>
     simp only [evalDomainValidAffine] at hdom
     simp only [Expr.eval_sqrt, evalIntervalAffine]

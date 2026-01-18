@@ -10,6 +10,7 @@ import LeanCert.Core.Expr
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import Mathlib.Analysis.SpecificLimits.Normed
+import Mathlib.Analysis.Real.Pi.Bounds
 
 /-!
 # Rational Endpoint Intervals - Computable Taylor Series
@@ -1706,6 +1707,127 @@ theorem mem_logComputable {x : ℝ} {I : IntervalRat} (hx : x ∈ I) (hpos : 0 <
 theorem mem_logComputable' {x : ℝ} {I : IntervalRat} (hx : x ∈ I) (hpos : 0 < I.lo) (n : ℕ) :
     Real.log x ∈ logComputable I n := by
   exact mem_logComputable hx hpos n
+
+/-! ### Computable erf via Taylor series -/
+
+/-- Interval containing 2/√π ≈ 1.128379...
+    Used for erf calculations. 2/√π is in (1.128, 1.129). -/
+def two_div_sqrt_pi : IntervalRat :=
+  ⟨1128/1000, 1129/1000, by norm_num⟩
+
+/-- Taylor coefficients for erf (without the 2/√π factor):
+    erf(x) = (2/√π) * Σ_{n=0}^∞ (-1)^n * x^(2n+1) / (n! * (2n+1))
+
+    So the coefficient of x^k is:
+    - 0 if k is even
+    - (-1)^((k-1)/2) / (((k-1)/2)! * k) if k is odd -/
+def erfTaylorCoeffs (n : ℕ) : List ℚ :=
+  (List.range (n + 1)).map (fun i =>
+    if i % 2 = 1 then  -- odd terms only: x, x³, x⁵, ...
+      let m : ℕ := (i - 1) / 2  -- for x^(2m+1), m = (i-1)/2
+      ((-1 : ℚ) ^ m) / (ratFactorial m * (i : ℚ))
+    else 0)
+
+/-- Computable erf remainder bound.
+    Since |erf^{(k)}(x)| ≤ (2/√π) * 2^k for all x (rough bound),
+    and erf is bounded by 1, we use a combination.
+
+    For the Taylor remainder centered at 0, we use:
+    |R_n(x)| ≤ sup|f^{(n+1)}(ξ)| * |x|^{n+1} / (n+1)!
+
+    A conservative bound: |erf^{(k)}(x)| ≤ (2/√π) * k! / (k/2)! ≤ 2 * k^{k/2}
+    But since |erf| ≤ 1, we can intersect with [-1, 1].
+
+    We use: remainder ≤ 2 * |x|^{n+1} / (n+1)! (very conservative). -/
+def erfRemainderBoundComputable (I : IntervalRat) (n : ℕ) : IntervalRat :=
+  let r := maxAbs I
+  -- Conservative bound: use 2 as the derivative bound (since 2/√π ≈ 1.13)
+  let R := 2 * r ^ (n + 1) / ratFactorial (n + 1)
+  ⟨-R, R, by
+    have hr : 0 ≤ r := le_max_of_le_left (abs_nonneg I.lo)
+    have hfact : (0 : ℚ) ≤ ratFactorial (n + 1) := by
+      simp only [ratFactorial]; exact Nat.cast_nonneg _
+    have hpow : (0 : ℚ) ≤ r ^ (n + 1) := pow_nonneg hr _
+    have hR : 0 ≤ R := div_nonneg (mul_nonneg (by norm_num : (0:ℚ) ≤ 2) hpow) hfact
+    linarith⟩
+
+/-- Computable interval enclosure for erf at a single rational point.
+    Uses Taylor series with the 2/√π factor applied as interval multiplication. -/
+def erfPointComputable (q : ℚ) (n : ℕ := 15) : IntervalRat :=
+  let I := singleton q
+  let coeffs := erfTaylorCoeffs n
+  let polyVal := evalTaylorSeries coeffs I
+  let remainder := erfRemainderBoundComputable I n
+  let rawSeries := add polyVal remainder
+  -- Multiply by 2/√π interval
+  let scaled := mul two_div_sqrt_pi rawSeries
+  -- Intersect with global bound [-1, 1]
+  let globalBound : IntervalRat := ⟨-1, 1, by norm_num⟩
+  match intersect scaled globalBound with
+  | some refined => refined
+  | none => globalBound  -- Fallback to safe global bounds
+
+/-- Computable interval enclosure for erf using Taylor series with monotonicity.
+
+    erf(x) = (2/√π) * Σ_{n=0}^∞ (-1)^n * x^(2n+1) / (n! * (2n+1))
+
+    Since erf is strictly monotone increasing (erf'(x) = (2/√π)e^{-x²} > 0),
+    we use endpoint evaluation: erf([a,b]) ⊆ [erf(a), erf(b)].
+
+    We intersect with [-1, 1] for safety. -/
+def erfComputable (I : IntervalRat) (n : ℕ := 15) : IntervalRat :=
+  -- erf is strictly monotone increasing, so evaluate at endpoints
+  let erfLo := erfPointComputable I.lo n
+  let erfHi := erfPointComputable I.hi n
+  let raw := hull erfLo erfHi
+  -- Intersect with global bound [-1, 1]
+  let globalBound : IntervalRat := ⟨-1, 1, by norm_num⟩
+  match intersect raw globalBound with
+  | some refined => refined
+  | none => globalBound
+
+/-- 2/√π is in the interval two_div_sqrt_pi.
+    2/√π ≈ 1.1283791670955126, which is in (1.128, 1.129).
+
+    This is a helper theorem for correctness proofs. The computation of
+    erfComputable is independent of this theorem. -/
+theorem two_div_sqrt_pi_mem : 2 / Real.sqrt Real.pi ∈ two_div_sqrt_pi := by
+  simp only [two_div_sqrt_pi, mem_def]
+  -- From π bounds: 3.1415 < π < 3.1416 (Real.pi_gt_d4, Real.pi_lt_d4)
+  -- So √π is between √3.1415 ≈ 1.7724 and √3.1416 ≈ 1.7725
+  -- Thus 2/√π is between 2/1.7725 ≈ 1.1283 and 2/1.7724 ≈ 1.1285
+  have hpi_lo : (3.1415 : ℝ) < Real.pi := Real.pi_gt_d4
+  have hpi_hi : Real.pi < (3.1416 : ℝ) := Real.pi_lt_d4
+  have hsqrt_lo : (1.7724 : ℝ) < Real.sqrt Real.pi := by
+    have h1 : (1.7724 : ℝ) ^ 2 < Real.pi := by
+      have : (1.7724 : ℝ) ^ 2 = 3.14140176 := by ring
+      linarith
+    have h2 : (0 : ℝ) ≤ 1.7724 := by norm_num
+    have h3 : (0 : ℝ) ≤ 1.7724 ^ 2 := by positivity
+    calc (1.7724 : ℝ) = Real.sqrt (1.7724 ^ 2) := (Real.sqrt_sq h2).symm
+      _ < Real.sqrt Real.pi := Real.sqrt_lt_sqrt h3 h1
+  have hsqrt_hi : Real.sqrt Real.pi < (1.7725 : ℝ) := by
+    have h1 : Real.pi < (1.7725 : ℝ) ^ 2 := by
+      have : (1.7725 : ℝ) ^ 2 = 3.14175625 := by ring
+      linarith
+    have hpi_pos : (0 : ℝ) < Real.pi := Real.pi_pos
+    rw [← Real.sqrt_sq (le_of_lt (by norm_num : (0 : ℝ) < 1.7725))]
+    exact Real.sqrt_lt_sqrt (le_of_lt hpi_pos) h1
+  constructor
+  · -- Goal: ↑(1128 / 1000) ≤ 2 / √π
+    have h1 : ((1128 / 1000 : ℚ) : ℝ) < 2 / 1.7725 := by norm_num
+    have h2 : (2 : ℝ) / 1.7725 < 2 / Real.sqrt Real.pi := by
+      apply div_lt_div_of_pos_left (by norm_num : (0 : ℝ) < 2)
+      · exact Real.sqrt_pos.mpr Real.pi_pos
+      · exact hsqrt_hi
+    exact le_of_lt (lt_trans h1 h2)
+  · -- Goal: 2 / √π ≤ ↑(1129 / 1000)
+    have h1 : 2 / Real.sqrt Real.pi < (2 : ℝ) / 1.7724 := by
+      apply div_lt_div_of_pos_left (by norm_num : (0 : ℝ) < 2)
+      · norm_num
+      · exact hsqrt_lo
+    have h2 : (2 : ℝ) / 1.7724 < ((1129 / 1000 : ℚ) : ℝ) := by norm_num
+    exact le_of_lt (lt_trans h1 h2)
 
 end IntervalRat
 

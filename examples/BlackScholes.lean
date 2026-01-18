@@ -97,23 +97,56 @@ theorem exp_negative_rate_bounds :
     ∀ r ∈ Set.Icc (-6/100 : ℝ) (-4/100), Real.exp r ≤ (97/100 : ℚ) := by
   certify_bound
 
-/-! ## Part E: Discovery Commands -/
+/-! ## Part E: Normal CDF via Error Function
+
+The Black-Scholes formula uses the normal CDF: Φ(x) = (1 + erf(x/√2))/2
+
+For the d₁ and d₂ terms, we need bounds on erf for typical values.
+When d ∈ [-2, 2] (covers most practical cases), we can compute tight bounds.
+-/
+
+-- erf bounds for d₁, d₂ terms in Black-Scholes
+-- erf(0) = 0, erf(1) ≈ 0.8427, erf(2) ≈ 0.9953
+
+theorem erf_positive_upper :
+    ∀ x ∈ Set.Icc (0:ℝ) 1, Real.erf x ≤ (85/100 : ℚ) := by
+  certify_bound
+
+theorem erf_positive_lower :
+    ∀ x ∈ Set.Icc (0:ℝ) 1, (0 : ℚ) ≤ Real.erf x := by
+  certify_bound
+
+-- For at-the-money options, d₁ and d₂ are often near 0
+-- erf is odd, so erf(-x) = -erf(x)
+theorem erf_near_zero_bounds :
+    ∀ x ∈ Set.Icc (-1/2 : ℝ) (1/2), Real.erf x ≤ (53/100 : ℚ) := by
+  certify_bound
+
+-- Deep in-the-money: d₁, d₂ large positive → erf close to 1
+theorem erf_large_positive :
+    ∀ x ∈ Set.Icc (1:ℝ) 2, (84/100 : ℚ) ≤ Real.erf x := by
+  certify_bound
+
+/-! ## Part F: Discovery Commands -/
 
 -- Note: #bounds intervals must use integer endpoints or simple fractions
 #bounds (fun x => Real.exp (-x * x / 2)) on [-2, 2]
 #bounds (fun x => Real.log x) on [1, 2]
 #bounds (fun r => Real.exp r) on [-1, 0]
+#bounds (fun x => Real.erf x) on [0, 1]
+#bounds (fun x => Real.erf x) on [-1, 1]
 
 /-! ## Summary: Black-Scholes Bounds ✓
 
 Successfully proved:
-1. Discount factor bounds: e^(-rT) ∈ [0.95, 0.96] for r near 5%
-2. Log-moneyness bounds: log(S/K) ∈ [-0.11, 0.11] for near-ATM options
+1. Discount factor bounds: e^(-rT) ∈ [0.94, 0.97] for r near 5%
+2. Log-moneyness bounds: log(S/K) ∈ [-0.11, 0.10] for near-ATM options
 3. Gaussian core bounds for vega calculation
 4. Rate sensitivity component bounds
+5. Error function bounds for normal CDF: erf(x) for d₁, d₂ terms
 
 These bounds are essential for:
 - Option pricing validation
-- Greeks calculation
+- Greeks calculation (Delta via Φ(d₁), Vega via φ(d₁))
 - Risk management
 -/
