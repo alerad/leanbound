@@ -2869,9 +2869,12 @@ def proveClosedExpressionBound (goal : MVarId) (goalType : Lean.Expr) (taylorDep
             trace[interval_decide] "After norm_num, h0 type: {← inferType d.toExpr}"
 
         -- Try various approaches to close the goal
+        -- First normalize Rat.divInt coercions so linarith can connect them
         evalTactic (← `(tactic| (
           first
           | linarith
+          | (simp only [Rat.divInt_eq_div, Rat.cast_div, Rat.cast_intCast, Rat.cast_natCast] at h0; linarith)
+          | (norm_cast at h0; linarith)
           | (simp only [← sub_eq_add_neg] at h0; exact sub_pos.mp h0)
           | (simp only [← sub_eq_add_neg, sub_pos] at h0; exact h0)
           | (have h1 := lt_add_of_neg_add_lt_left h0; simp at h1; exact h1)
@@ -3086,20 +3089,27 @@ def intervalDecideCore (taylorDepth : Nat) : TacticM Unit := do
                  For universally quantified goals, use `interval_bound` instead.")
       throwError "interval_decide: Could not parse as point inequality.\n\n{diagReport}"
 
-  -- Determine which side has the transcendental function by checking where we find rational constants
-  -- If lhs has only rational constants and rhs doesn't (or vice versa), swap appropriately
+  -- Determine which side has the transcendental function by checking:
+  -- 1. If one side IS a pure constant (the whole expr is a rational), that's the bound
+  -- 2. Otherwise fall back to checking which side contains constants
+  let lhsIsConst ← toRat? lhs
+  let rhsIsConst ← toRat? rhs
   let lhsConsts ← collectConstants lhs
   let rhsConsts ← collectConstants rhs
 
-  -- The bound side should have rational constants, the function side shouldn't (or has transcendentals)
-  -- If lhs has rationals and rhs doesn't → rhs is the function (flip for LE goals)
-  -- If rhs has rationals and lhs doesn't → lhs is the function (standard for LE goals)
+  -- Priority: if one side IS a constant, use that as the bound
   let (funcExpr, boundExpr, needsFlip) :=
-    if lhsConsts.isEmpty && !rhsConsts.isEmpty then
-      -- lhs is the function (has no extractable rationals, likely transcendental)
+    if lhsIsConst.isSome && rhsIsConst.isNone then
+      -- lhs is pure constant, rhs is the function
+      (rhs, lhs, true)
+    else if rhsIsConst.isSome && lhsIsConst.isNone then
+      -- rhs is pure constant, lhs is the function
+      (lhs, rhs, false)
+    else if lhsConsts.isEmpty && !rhsConsts.isEmpty then
+      -- lhs has no extractable rationals (likely transcendental), rhs has some
       (lhs, rhs, false)
     else if rhsConsts.isEmpty && !lhsConsts.isEmpty then
-      -- rhs is the function (has no extractable rationals, likely transcendental)
+      -- rhs has no extractable rationals (likely transcendental), lhs has some
       (rhs, lhs, true)
     else
       -- Either both have constants or neither does - default to lhs as function
