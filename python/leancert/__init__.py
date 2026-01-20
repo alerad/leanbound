@@ -22,7 +22,7 @@ Key Features:
     - Context manager support for resource management
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 # Core expression types and constructors
 from .expr import (
@@ -77,6 +77,32 @@ from .result import (
     Certificate,
     UniqueRootResult,
     VerifyResult,
+    LipschitzResult,
+)
+
+# Adaptive verification (CEGAR)
+from .adaptive import (
+    AdaptiveResult,
+    AdaptiveConfig,
+    SplitStrategy,
+    Subdomain,
+    SubdomainResult,
+    SplitCandidate,
+    AlgebraicAnalyzer,
+    verify_bound_adaptive,
+)
+
+# Quantifier pattern synthesis
+from .quantifier import (
+    QuantifierPattern,
+    QuantifierResult,
+    QuantifierSynthesizer,
+    Witness,
+    synthesize_bound,
+    synthesize_minimum,
+    synthesize_maximum,
+    prove_limit,
+    prove_sign,
 )
 
 # Solver
@@ -195,6 +221,13 @@ __all__ = [
     "Certificate",
     "UniqueRootResult",
     "VerifyResult",
+    # Adaptive verification (CEGAR)
+    "AdaptiveResult",
+    "AdaptiveConfig",
+    "SplitStrategy",
+    "Subdomain",
+    "SubdomainResult",
+    "verify_bound_adaptive",
     # Solver
     "Solver",
     "find_bounds",

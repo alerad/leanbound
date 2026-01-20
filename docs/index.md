@@ -14,6 +14,9 @@ LeanCert automates proofs of inequalities, global extrema, root existence, and i
 - **Neural Network Verification**: Interval propagation with DeepPoly relaxations
 - **Transformer Verification**: Multi-Head Attention, LayerNorm, GELU soundness proofs
 - **Counter-Example Search**: `interval_refute` finds where conjectured bounds fail
+- **Quantifier Synthesis**: Verified witnesses for `∀`, `∃`, min/max, and ε-δ continuity
+- **Lipschitz Bounds**: Derivative-based continuity certificates via Mean Value Theorem
+- **Adaptive Verification**: Domain splitting and proof assembly for complex expressions
 - **Python SDK**: High-level API with symbolic simplification and false-positive filtering
 
 ## Quick Example
@@ -95,6 +98,15 @@ pip install -e .
 | [Choosing Tactics](choosing-tactics.md) | Decision flowchart for picking the right tactic |
 | [Troubleshooting](troubleshooting.md) | Common errors and how to fix them |
 | [End-to-End Example](end-to-end-example.md) | Full workflow from exploration to proof |
+
+### API Reference
+
+| Document | Description |
+|----------|-------------|
+| [Solver API](api/solver.md) | Core verification methods |
+| [Quantifier Synthesis](api/quantifier.md) | Verified `∀`/`∃` witnesses |
+| [Lipschitz Bounds](api/lipschitz.md) | Derivative-based continuity |
+| [Adaptive Verification](api/adaptive.md) | Domain splitting strategies |
 
 ### Architecture
 

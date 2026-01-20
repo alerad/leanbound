@@ -815,3 +815,78 @@ class FailureDiagnosis:
 
     def __repr__(self) -> str:
         return f"FailureDiagnosis({self.failure_type}, margin={self.margin:.6f}, suggested={self.suggested_bound:.6f})"
+
+
+@dataclass
+class LipschitzResult:
+    """
+    Result of Lipschitz bound computation.
+
+    The Lipschitz constant L satisfies: |f(x) - f(y)| ≤ L * |x - y| for all x, y in the domain.
+    This is computed by bounding the gradient: L = max_i sup_{x} |∂f/∂xᵢ(x)|.
+
+    Attributes:
+        lipschitz_bound: The verified Lipschitz constant L.
+        gradient_bounds: Dict mapping variable names to derivative interval bounds.
+        certificate: Verification certificate from the Lean kernel.
+
+    Use case (ε-δ continuity):
+        For any ε > 0, setting δ = ε/L guarantees:
+        |x - a| < δ → |f(x) - f(a)| < ε
+
+    Example:
+        >>> result = solver.compute_lipschitz_bound(x**2, {'x': (0, 1)})
+        >>> L = result.lipschitz_bound  # = 2 (max of |2x| on [0,1])
+        >>> epsilon = 0.1
+        >>> delta = epsilon / L  # = 0.05
+        >>> # Now |x - a| < 0.05 guarantees |x² - a²| < 0.1
+    """
+    lipschitz_bound: Fraction
+    gradient_bounds: dict[str, 'Interval']
+    certificate: Optional[Certificate] = None
+
+    def delta_for_epsilon(self, epsilon: float) -> float:
+        """
+        Compute δ such that |x - a| < δ → |f(x) - f(a)| < ε.
+
+        Args:
+            epsilon: The desired error bound ε > 0.
+
+        Returns:
+            δ = ε / L where L is the Lipschitz constant.
+        """
+        L = float(self.lipschitz_bound)
+        if L <= 0:
+            return float('inf')  # Constant function
+        return epsilon / L
+
+    def to_lean_tactic(self) -> str:
+        """Generate Lean tactic proof for Lipschitz continuity."""
+        L = self.lipschitz_bound
+        lines = [
+            "-- Lipschitz bound computed via gradient interval arithmetic",
+            f"-- L = {float(L):.10f} = {L.numerator}/{L.denominator}",
+            "--",
+            "-- Proof: |f(x) - f(y)| ≤ L * |x - y| by Mean Value Theorem",
+            "-- where L bounds |∇f| over the domain.",
+            "",
+            "-- Gradient bounds:",
+        ]
+        for var, interval in self.gradient_bounds.items():
+            lines.append(f"--   ∂f/∂{var} ∈ [{float(interval.lo):.6f}, {float(interval.hi):.6f}]")
+
+        lines.extend([
+            "",
+            f"use ({L.numerator} / {L.denominator})",
+            "intro x y hx hy",
+            "-- Apply MVT: |f(x) - f(y)| ≤ sup|f'| * |x - y|",
+            "apply lipschitz_of_deriv_bound",
+            "· -- Derivative bound",
+            "  interval_deriv_bound",
+        ])
+
+        return '\n'.join(lines)
+
+    def __repr__(self) -> str:
+        L = float(self.lipschitz_bound)
+        return f"LipschitzResult(L={L:.6f}, vars={list(self.gradient_bounds.keys())})"

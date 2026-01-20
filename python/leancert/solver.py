@@ -18,8 +18,9 @@ from .client import LeanClient, _parse_interval, _parse_rat, _parse_dyadic_inter
 from .result import (
     BoundsResult, RootsResult, RootInterval, IntegralResult, Certificate,
     UniqueRootResult, WitnessPoint, MinWitnessResult, MaxWitnessResult,
-    RootWitnessResult, FailureDiagnosis,
+    RootWitnessResult, FailureDiagnosis, LipschitzResult,
 )
+from .adaptive import AdaptiveResult, AdaptiveConfig, verify_bound_adaptive as _verify_bound_adaptive
 from .exceptions import VerificationFailed, DomainError
 from .rational import to_fraction
 from .simplify import simplify as _simplify_expr
@@ -1220,6 +1221,77 @@ class Solver:
         return None  # Bound would succeed
 
     # =========================================================================
+    # Adaptive Verification (CEGAR)
+    # =========================================================================
+
+    def verify_bound_adaptive(
+        self,
+        expr: Expr,
+        domain: Union[Interval, Box, tuple, dict],
+        upper: Optional[float] = None,
+        lower: Optional[float] = None,
+        adaptive_config: AdaptiveConfig = AdaptiveConfig(),
+        config: Config = Config(),
+    ) -> AdaptiveResult:
+        """
+        Verify a bound using CEGAR (Counterexample-Guided Abstraction Refinement).
+
+        When single-shot verification fails on a large domain, this method
+        automatically splits the domain and retries on subdomains until either:
+        - The bound is verified on all subdomains, or
+        - A minimal subdomain is found where the bound genuinely fails
+
+        This turns LeanCert into a CEGAR loop where Python handles the search
+        tree and Lean only checks final claims. The result includes a structured
+        Lean proof that combines subdomain proofs.
+
+        Args:
+            expr: Expression to verify.
+            domain: Domain specification.
+            upper: Upper bound to verify (f(x) ≤ upper).
+            lower: Lower bound to verify (f(x) ≥ lower).
+            adaptive_config: Configuration for domain splitting (max_splits,
+                            max_depth, strategy, etc.).
+            config: Underlying solver configuration.
+
+        Returns:
+            AdaptiveResult with:
+            - verified: True if bound holds on all subdomains
+            - subdomains: Tree of all subdomains explored
+            - lean_proof: Generated Lean proof combining subdomain proofs
+            - failing_subdomain: Minimal region where bound fails (if any)
+
+        Example:
+            >>> result = solver.verify_bound_adaptive(
+            ...     sin(x) + cos(x),
+            ...     {'x': (0, 10)},
+            ...     upper=1.5,
+            ...     adaptive_config=AdaptiveConfig(max_splits=64),
+            ... )
+            >>> print(result.verified)
+            True
+            >>> print(result.lean_proof)
+            theorem adaptive_bound_proof : ...
+
+        Generated Lean proofs have this structure:
+            theorem bound_on_domain : ∀ x ∈ Set.Icc 0 10, f x ≤ 1.5 := by
+              intro x hx
+              rcases interval_cases hx with h1 | h2 | h3
+              · interval_decide  -- x ∈ [0, 3.33]
+              · interval_decide  -- x ∈ [3.33, 6.67]
+              · interval_decide  -- x ∈ [6.67, 10]
+        """
+        return _verify_bound_adaptive(
+            self,
+            expr,
+            domain,
+            upper=upper,
+            lower=lower,
+            adaptive_config=adaptive_config,
+            solver_config=config,
+        )
+
+    # =========================================================================
     # Helper methods for witness synthesis
     # =========================================================================
 
@@ -1335,6 +1407,91 @@ class Solver:
                 use_monotonicity=cfg['useMonotonicity'],
                 taylor_depth=cfg['taylorDepth'],
             )
+
+    # =========================================================================
+    # Lipschitz Bound Computation (for ε-δ continuity proofs)
+    # =========================================================================
+
+    def compute_lipschitz_bound(
+        self,
+        expr: Expr,
+        domain: Union[Interval, Box, tuple, dict],
+        config: Config = Config(),
+    ) -> 'LipschitzResult':
+        """
+        Compute a verified Lipschitz bound for an expression over a domain.
+
+        Uses forward-mode automatic differentiation to bound all partial
+        derivatives |∂f/∂xᵢ| over the domain. The Lipschitz constant is
+        L = max_i sup_{x ∈ domain} |∂f/∂xᵢ(x)|.
+
+        This is VERIFIED by the Lean kernel - the derivative bounds are
+        computed using interval arithmetic with correctness proofs.
+
+        Args:
+            expr: Expression to compute Lipschitz bound for.
+            domain: Domain over which to compute the bound.
+            config: Solver configuration.
+
+        Returns:
+            LipschitzResult containing:
+              - lipschitz_bound: The verified Lipschitz constant L
+              - gradient_bounds: Dict mapping variable names to derivative intervals
+              - certificate: Verification certificate
+
+        Example:
+            >>> solver = Solver()
+            >>> x = var('x')
+            >>> result = solver.compute_lipschitz_bound(x**2, {'x': (0, 1)})
+            >>> print(result.lipschitz_bound)  # Should be 2 (max of |2x| on [0,1])
+            2
+
+        Use case (ε-δ continuity):
+            If L is the Lipschitz constant, then for any ε > 0,
+            setting δ = ε/L guarantees |f(x) - f(a)| < ε whenever |x - a| < δ.
+        """
+        client = self._ensure_client()
+        expr_json, box = self._prepare_request(expr, domain)
+        box_json = box.to_kernel_list()
+        var_names = box.var_order()
+        cfg = config.to_kernel()
+
+        # Call the Lean kernel's derivative interval evaluation
+        result = client.deriv_interval(
+            expr_json, box_json,
+            taylor_depth=cfg['taylorDepth'],
+        )
+
+        # Parse results
+        lipschitz_bound = _parse_rat(result['lipschitz_bound'])
+
+        gradient_bounds = {}
+        for i, grad_json in enumerate(result.get('gradients', [])):
+            if i < len(var_names):
+                name = var_names[i]
+                lo = _parse_rat(grad_json['lo'])
+                hi = _parse_rat(grad_json['hi'])
+                gradient_bounds[name] = Interval(lo, hi)
+
+        # Create certificate
+        cert = Certificate(
+            operation='compute_lipschitz_bound',
+            expr_json=expr_json,
+            domain_json=box_json,
+            result_json={
+                'lipschitz_bound': {'n': lipschitz_bound.numerator, 'd': lipschitz_bound.denominator},
+                'gradient_bounds': {k: v.to_kernel() for k, v in gradient_bounds.items()},
+            },
+            verified=True,
+            lean_version=LEAN_VERSION,
+            leancert_version=__version__,
+        )
+
+        return LipschitzResult(
+            lipschitz_bound=lipschitz_bound,
+            gradient_bounds=gradient_bounds,
+            certificate=cert,
+        )
 
     def _race_min_strategies(
         self,
@@ -1788,3 +1945,46 @@ def forward_interval(
         List of output intervals (one per output neuron)
     """
     return _get_solver().forward_interval(network, input_domain, precision)
+
+
+def verify_bound_adaptive(
+    expr: Expr,
+    domain: Union[Interval, Box, tuple, dict],
+    upper: Optional[float] = None,
+    lower: Optional[float] = None,
+    adaptive_config: AdaptiveConfig = AdaptiveConfig(),
+    config: Config = Config(),
+) -> AdaptiveResult:
+    """
+    Verify a bound using CEGAR (Counterexample-Guided Abstraction Refinement).
+
+    When single-shot verification fails on a large domain, this function
+    automatically splits the domain and retries on subdomains until either:
+    - The bound is verified on all subdomains, or
+    - A minimal subdomain is found where the bound genuinely fails
+
+    Args:
+        expr: Expression to verify.
+        domain: Domain specification.
+        upper: Upper bound to verify (f(x) ≤ upper).
+        lower: Lower bound to verify (f(x) ≥ lower).
+        adaptive_config: Configuration for domain splitting.
+        config: Underlying solver configuration.
+
+    Returns:
+        AdaptiveResult with verification status, subdomain tree, and Lean proof.
+
+    Example:
+        >>> import leancert as lc
+        >>> x = lc.var('x')
+        >>> result = lc.verify_bound_adaptive(
+        ...     lc.sin(x) + lc.cos(x),
+        ...     {'x': (0, 10)},
+        ...     upper=1.5,
+        ... )
+        >>> print(result.verified)
+        True
+    """
+    return _get_solver().verify_bound_adaptive(
+        expr, domain, upper, lower, adaptive_config, config
+    )

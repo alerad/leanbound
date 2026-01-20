@@ -16,6 +16,7 @@ The `Solver` class is the main entry point for the Python SDK. It manages commun
         - synthesize_min_witness
         - synthesize_max_witness
         - synthesize_root_witness
+        - compute_lipschitz_bound
         - diagnose_bound_failure
       show_root_heading: true
       show_source: false
@@ -94,6 +95,29 @@ config = lc.Config(incremental_refinement=True)
 result = solver.synthesize_max_witness(lc.exp(x), {'x': (0, 1)}, config=config)
 print(result.refinement_history)  # [{bound: 2.8, status: 'verified'}, ...]
 ```
+
+## Lipschitz Bounds
+
+LeanCert can compute verified Lipschitz constants for expressions by bounding derivatives via interval arithmetic.
+
+```python
+import leancert as lc
+
+x = lc.var('x')
+with lc.Solver() as solver:
+    result = solver.compute_lipschitz_bound(
+        lc.sin(x),
+        {'x': (0, 3.14159)}
+    )
+
+    print(result.lipschitz_bound)   # Fraction(1, 1) = 1.0
+    print(result.gradient_bounds)   # {'x': Interval(-1, 1)}
+
+    # Use for ε-δ continuity: δ = ε/L
+    delta = result.delta_for_epsilon(0.01)  # 0.01
+```
+
+See [Lipschitz Bounds](lipschitz.md) for detailed documentation.
 
 ## Failure Diagnosis (CEGPR)
 

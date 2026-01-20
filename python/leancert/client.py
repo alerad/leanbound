@@ -508,6 +508,46 @@ class LeanClient:
             "precision": precision,
         })
 
+    def deriv_interval(
+        self,
+        expr_json: dict,
+        box_json: list[dict],
+        taylor_depth: int = 10,
+    ) -> dict:
+        """
+        Compute derivative interval bounds over a box.
+
+        This computes bounds on all partial derivatives (the gradient) over a box
+        using forward-mode automatic differentiation. The result can be used to
+        compute Lipschitz constants for epsilon-delta continuity proofs.
+
+        Args:
+            expr_json: Expression AST as JSON dict
+            box_json: List of interval dicts (one per variable)
+            taylor_depth: Taylor series depth for transcendental functions
+
+        Returns:
+            Dict with:
+              - gradients: List of intervals, one per variable, each containing
+                          the range of ∂f/∂xᵢ over the box
+              - lipschitz_bound: max(|∂f/∂xᵢ|) over all variables and the box
+              - num_vars: Number of variables
+
+        Example:
+            >>> client = LeanClient()
+            >>> # f(x) = x^2, domain [0, 1]
+            >>> expr = {"kind": "pow", "base": {"kind": "var", "idx": 0}, "exp": 2}
+            >>> box = [{"lo": {"n": 0, "d": 1}, "hi": {"n": 1, "d": 1}}]
+            >>> result = client.deriv_interval(expr, box)
+            >>> # gradient of x^2 is 2x, so on [0,1] it's [0, 2]
+            >>> print(result["lipschitz_bound"])  # Should be 2
+        """
+        return self.call("deriv_interval", {
+            "expr": expr_json,
+            "box": box_json,
+            "taylorDepth": taylor_depth,
+        })
+
     def close(self) -> None:
         """Close the subprocess."""
         if self._process is not None:

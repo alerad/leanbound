@@ -9,6 +9,7 @@ import LeanCert.Engine.IntervalEval
 import LeanCert.Engine.IntervalEvalDyadic
 import LeanCert.Engine.IntervalEvalAffine
 import LeanCert.Engine.Optimization.Global
+import LeanCert.Engine.Optimization.Gradient
 import LeanCert.Engine.Integrate
 import LeanCert.Validity.Bounds
 import LeanCert.ML.Distillation
@@ -559,6 +560,23 @@ instance : FromJson ForwardIntervalRequest where
     let precision := (j.getObjValAs? Int "precision").toOption.getD (-53)
     return { layers, input, precision }
 
+/-- Request for derivative interval evaluation (for Lipschitz bounds).
+    Computes bounds on all partial derivatives over a box. -/
+structure DerivIntervalRequest where
+  expr : LExpr
+  box : Array RawInterval
+  taylorDepth : Nat := 10
+
+instance : FromJson DerivIntervalRequest where
+  fromJson? j := do
+    let expr ← j.getObjValAs? LExpr "expr"
+    let boxJson ← j.getObjVal? "box"
+    let boxArr ← match boxJson with
+      | Json.arr arr => arr.mapM (FromJson.fromJson? (α := RawInterval))
+      | _ => throw "box must be an array"
+    let taylorDepth := (j.getObjValAs? Nat "taylorDepth").toOption.getD 10
+    return { expr, box := boxArr, taylorDepth }
+
 /-! ## 4. Request Handlers -/
 
 /-- Handle interval evaluation request -/
@@ -1031,6 +1049,37 @@ def handleForwardInterval (req : ForwardIntervalRequest) : Json :=
     ("outputDim", toJson output.length)
   ]
 
+/-- Handle derivative interval request.
+
+Computes bounds on all partial derivatives (the gradient) over a box.
+This is used for computing Lipschitz constants: L = max_i sup_x |∂f/∂xᵢ(x)|.
+
+Returns: Array of intervals, one per variable, each containing ∂f/∂xᵢ for all x ∈ box.
+Also returns the Lipschitz bound L = max(|lo|, |hi|) over all partial derivatives. -/
+def handleDerivInterval (req : DerivIntervalRequest) : Json :=
+  let box : Box := req.box.toList.map RawInterval.toInterval
+  let cfg : EvalConfig := { taylorDepth := req.taylorDepth }
+
+  -- Compute gradient interval using computable AD
+  let gradients := Optimization.gradientIntervalCore req.expr box cfg
+
+  -- Compute Lipschitz bound: max of absolute values of all partial derivative bounds
+  let lipschitzBound := gradients.foldl (fun acc I =>
+    max acc (max (abs I.lo) (abs I.hi))) (0 : ℚ)
+
+  -- Serialize gradient intervals
+  let gradientsJson := gradients.map (fun I =>
+    Json.mkObj [
+      ("lo", toJson (toRawRat I.lo)),
+      ("hi", toJson (toRawRat I.hi))
+    ])
+
+  Json.mkObj [
+    ("gradients", Json.arr gradientsJson.toArray),
+    ("lipschitz_bound", toJson (toRawRat lipschitzBound)),
+    ("num_vars", toJson gradients.length)
+  ]
+
 /-! ## 5. Main Event Loop -/
 
 /-- Process a single JSON-RPC request -/
@@ -1128,6 +1177,11 @@ def processRequest (line : String) : IO Unit := do
           match fromJson? (α := ForwardIntervalRequest) args with
           | Except.ok req => Json.mkObj [("result", handleForwardInterval req)]
           | Except.error e => Json.mkObj [("error", s!"Invalid forward_interval params: {e}")]
+
+        | "deriv_interval" =>
+          match fromJson? (α := DerivIntervalRequest) args with
+          | Except.ok req => Json.mkObj [("result", handleDerivInterval req)]
+          | Except.error e => Json.mkObj [("error", s!"Invalid deriv_interval params: {e}")]
 
         | "ping" =>
           Json.mkObj [("result", "pong")]
