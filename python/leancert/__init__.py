@@ -115,6 +115,7 @@ from .solver import (
     integrate,
     eval_interval,
     forward_interval,
+    verify_nn_bounds,
 )
 
 # Client (for advanced users)
@@ -237,6 +238,7 @@ __all__ = [
     "integrate",
     "eval_interval",
     "forward_interval",
+    "verify_nn_bounds",
     # Client
     "LeanClient",
     # Simplification

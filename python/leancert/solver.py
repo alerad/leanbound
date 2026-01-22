@@ -1988,3 +1988,79 @@ def verify_bound_adaptive(
     return _get_solver().verify_bound_adaptive(
         expr, domain, upper, lower, adaptive_config, config
     )
+
+
+def verify_nn_bounds(
+    network,  # SequentialNetwork or TwoLayerReLUNetwork
+    input_domain: Union[Box, dict, list],
+    output_lower: Union[float, list, None] = None,
+    output_upper: Union[float, list, None] = None,
+    precision: int = -53,
+) -> bool:
+    """
+    Verify that a neural network's outputs stay within specified bounds.
+
+    This is a convenience wrapper around forward_interval that checks
+    whether the computed output intervals are contained within the
+    specified bounds.
+
+    Args:
+        network: A SequentialNetwork or TwoLayerReLUNetwork from leancert.nn
+        input_domain: Input intervals as Box, dict, or list of tuples
+        output_lower: Lower bound(s) for outputs (single value or list per output)
+        output_upper: Upper bound(s) for outputs (single value or list per output)
+        precision: Dyadic precision (-53 = IEEE double precision)
+
+    Returns:
+        True if all outputs are verified to be within bounds, False otherwise.
+
+    Example:
+        >>> import leancert as lc
+        >>> from leancert.nn import TwoLayerReLUNetwork, Layer
+        >>> import numpy as np
+        >>>
+        >>> # Create a small network
+        >>> layer1 = Layer.from_numpy(np.array([[1, -1], [0, 1]]), np.array([0, 0]))
+        >>> layer2 = Layer.from_numpy(np.array([[1, 1]]), np.array([0]), activation='none')
+        >>> net = TwoLayerReLUNetwork(layer1, layer2)
+        >>>
+        >>> # Verify output bounds
+        >>> verified = lc.verify_nn_bounds(
+        ...     net,
+        ...     input_domain={'x0': (-1, 1), 'x1': (-1, 1)},
+        ...     output_lower=0,
+        ...     output_upper=5,
+        ... )
+        >>> print(verified)  # True
+    """
+    # Get verified output intervals
+    output_intervals = forward_interval(network, input_domain, precision)
+
+    # Normalize bounds to lists
+    n_outputs = len(output_intervals)
+
+    if output_lower is None:
+        lower_bounds = [None] * n_outputs
+    elif isinstance(output_lower, (int, float)):
+        lower_bounds = [float(output_lower)] * n_outputs
+    else:
+        lower_bounds = [float(x) if x is not None else None for x in output_lower]
+
+    if output_upper is None:
+        upper_bounds = [None] * n_outputs
+    elif isinstance(output_upper, (int, float)):
+        upper_bounds = [float(output_upper)] * n_outputs
+    else:
+        upper_bounds = [float(x) if x is not None else None for x in output_upper]
+
+    # Check each output
+    for i, interval in enumerate(output_intervals):
+        lo = float(interval.lo)
+        hi = float(interval.hi)
+
+        if lower_bounds[i] is not None and lo < lower_bounds[i]:
+            return False
+        if upper_bounds[i] is not None and hi > upper_bounds[i]:
+            return False
+
+    return True

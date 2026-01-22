@@ -198,7 +198,7 @@ example : ∃ m : ℚ, ∀ x ∈ Set.Icc (-2:ℝ) 2, x^2 + Real.sin x ≥ m := b
 
 ## Python SDK
 
-The Python SDK also supports discovery with witnesses:
+The Python SDK supports discovery:
 
 ```python
 import leancert as lc
@@ -206,13 +206,26 @@ import leancert as lc
 x = lc.var('x')
 expr = x**2 + lc.sin(x)
 
-# Find minimum with witness
-result = lc.minimize(expr, {'x': (-2, 2)})
-print(f"min ≈ {result.bound}")
-print(f"argmin ≈ {result.witness}")
-print(f"precision: ε = {result.epsilon}")
+# Find bounds (min and max)
+result = lc.find_bounds(expr, {'x': (-2, 2)})
+print(f"min ∈ [{result.min_lo}, {result.min_hi}]")
+print(f"max ∈ [{result.max_lo}, {result.max_hi}]")
 
-# Verify a bound
-check = lc.verify_lower_bound(expr, {'x': (-2, 2)}, bound=-0.25)
-print(f"Verified: {check.verified}")
+# Verify a bound (returns bool)
+verified = lc.verify_bound(expr, {'x': (-2, 2)}, lower=-0.25)
+print(f"Verified: {verified}")
+```
+
+For witnesses (approximate argmin/argmax), use the quantifier synthesis API:
+
+```python
+from leancert import Solver, synthesize_minimum, var, sin
+
+x = var('x')
+expr = x**2 + sin(x)
+
+result = synthesize_minimum(Solver(), expr, {'x': (-2, 2)})
+print(f"Success: {result.success}")
+print(f"Witness point: {result.witnesses[0].value}")  # {'x': -0.45...}
+print(f"Rigorous bounds: {result.witnesses[0].rigorous_bounds}")
 ```

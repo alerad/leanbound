@@ -263,7 +263,7 @@ theorem verifyUpperBound_correct (e : Expr) (hsupp : ExprSupported e)
   -- We have: for all ρ, globalMinimize(-e).lo ≤ -eval ρ e
   -- Therefore: eval ρ e ≤ -globalMinimize(-e).lo = globalMaximize(e).hi
   have hmax := globalMinimize_lo_correct (Expr.neg e) (ExprSupported.neg hsupp) B cfg.toGlobalOptConfig ρ hρ hzero
-  simp only [globalMaximize, Expr.eval_neg] at hmax ⊢
+  simp only [Expr.eval_neg] at hmax ⊢
   -- hmax : (globalMinimize (Expr.neg e) B cfg.toGlobalOptConfig).bound.lo ≤ -Expr.eval ρ e
   -- Goal : Expr.eval ρ e ≤ bound
   -- We have: globalMaximize.hi = -(globalMinimize (neg e)).lo

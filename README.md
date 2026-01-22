@@ -39,6 +39,16 @@ rev = "main"
 
 Then run `lake update`.
 
+### Checking Mathlib Compatibility
+
+LeanCert requires a specific Mathlib version (`v4.27.0-rc1`). If you have other dependencies or an existing project, check compatibility:
+
+```bash
+lake exe check-compat
+```
+
+This will warn you if your Mathlib version doesn't match and provide instructions to fix it.
+
 ## Usage
 
 ### Tactics

@@ -18,3 +18,7 @@ root = "Main"
 [[lean_exe]]
 name = "lean_bridge"
 root = "LeanCert.Bridge"
+
+[[lean_exe]]
+name = "check-compat"
+root = "LeanCert.CheckCompat"
