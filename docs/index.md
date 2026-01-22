@@ -94,6 +94,7 @@ pip install -e .
 | Guide | Description |
 |-------|-------------|
 | [Quickstart](quickstart.md) | Get started with Python SDK and Lean tactics |
+| [Discovery Mode](discovery.md) | Interactive exploration: `#find_min`, `#bounds`, witnesses |
 | [Tactics Reference](tactics.md) | Complete reference for all tactics |
 | [Choosing Tactics](choosing-tactics.md) | Decision flowchart for picking the right tactic |
 | [Troubleshooting](troubleshooting.md) | Common errors and how to fix them |
