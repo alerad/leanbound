@@ -52,8 +52,10 @@ jobs:
       - name: Install Elan (Windows)
         if: matrix.platform == 'windows'
         run: |
-          curl -sSL https://elan.lean-lang.org/elan-init.ps1 | powershell -Command -
-          echo "$env:USERPROFILE\.elan\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+          Invoke-WebRequest -Uri "https://github.com/leanprover/elan/releases/latest/download/elan-x86_64-pc-windows-msvc.zip" -OutFile elan.zip
+          Expand-Archive elan.zip -DestinationPath elan-extract
+          .\elan-extract\elan-init.exe -y --default-toolchain none
+          echo "$env:USERPROFILE\.elan\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
         shell: pwsh
 
       - name: Cache Lake packages
@@ -64,15 +66,25 @@ jobs:
           restore-keys: |
             lake-${{ matrix.platform }}-${{ matrix.arch }}-
 
-      - name: Build lean_bridge
+      - name: Build lean_bridge (Unix)
+        if: matrix.platform != 'windows'
         run: lake build lean_bridge
-        shell: bash
 
-      - name: Verify binary
+      - name: Build lean_bridge (Windows)
+        if: matrix.platform == 'windows'
+        run: lake build lean_bridge
+        shell: pwsh
+
+      - name: Verify binary (Unix)
+        if: matrix.platform != 'windows'
         run: |
           ls -la .lake/build/bin/
           file .lake/build/bin/${{ matrix.binary_name }} || true
-        shell: bash
+
+      - name: Verify binary (Windows)
+        if: matrix.platform == 'windows'
+        run: Get-ChildItem .lake\build\bin\
+        shell: pwsh
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
