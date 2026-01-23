@@ -85,6 +85,12 @@ rev = "main"
 ### Python
 
 ```bash
+pip install leancert
+```
+
+For development:
+
+```bash
 cd python
 pip install -e .
 ```
