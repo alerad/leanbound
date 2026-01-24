@@ -134,7 +134,11 @@ theorem evalInterval1_correct (e : Expr) (hsupp : ExprSupported e)
 
     For expressions without inv, this always returns `some` with the same
     result as `evalInterval`. -/
-noncomputable def evalInterval? (e : Expr) (ρ : IntervalEnv) : Option IntervalRat :=
+def evalIntervalLogDepth : ℕ := 60
+
+def evalIntervalExpDepth : ℕ := 30
+
+def evalInterval? (e : Expr) (ρ : IntervalEnv) : Option IntervalRat :=
   match e with
   | Expr.const q => some (IntervalRat.singleton q)
   | Expr.var idx => some (ρ idx)
@@ -160,7 +164,7 @@ noncomputable def evalInterval? (e : Expr) (ρ : IntervalEnv) : Option IntervalR
             some (IntervalRat.invNonzero ⟨J, h⟩)
   | Expr.exp e =>
       match evalInterval? e ρ with
-      | some I => some (IntervalRat.expInterval I)
+      | some I => some (IntervalRat.expComputable I evalIntervalExpDepth)
       | none => none
   | Expr.sin e =>
       match evalInterval? e ρ with
@@ -175,7 +179,7 @@ noncomputable def evalInterval? (e : Expr) (ρ : IntervalEnv) : Option IntervalR
       | none => none
       | some J =>
           if h : IntervalRat.isPositive J then
-            some (IntervalRat.logInterval ⟨J, h⟩)
+            some (IntervalRat.logComputable J evalIntervalLogDepth)
           else
             none
   | Expr.atan e =>
@@ -310,7 +314,7 @@ theorem evalInterval?_correct (e : Expr) (hsupp : ExprSupportedWithInv e)
       simp only [heq] at hsome
       cases hsome
       simp only [Expr.eval_exp]
-      exact IntervalRat.mem_expInterval (ih I' heq)
+      exact IntervalRat.mem_expComputable (ih I' heq) evalIntervalExpDepth
   | @sin e h ih =>
     simp only [evalInterval?] at hsome
     cases heq : evalInterval? e ρ_int with
@@ -341,7 +345,7 @@ theorem evalInterval?_correct (e : Expr) (hsupp : ExprSupportedWithInv e)
         simp only [Expr.eval_log]
         have hJ_mem := ih J heq
         -- The argument is positive because J.lo > 0 and eval ∈ J
-        exact IntervalRat.mem_logInterval hJ_mem
+        exact IntervalRat.mem_logComputable hJ_mem hpos evalIntervalLogDepth
       · contradiction
   | @atan e h ih =>
     simp only [evalInterval?] at hsome
@@ -411,7 +415,7 @@ theorem evalInterval?_correct (e : Expr) (hsupp : ExprSupportedWithInv e)
     exact mem_piInterval
 
 /-- Single-variable version of evalInterval? -/
-noncomputable def evalInterval?1 (e : Expr) (I : IntervalRat) : Option IntervalRat :=
+def evalInterval?1 (e : Expr) (I : IntervalRat) : Option IntervalRat :=
   evalInterval? e (fun _ => I)
 
 /-- Correctness for single-variable partial evaluation -/

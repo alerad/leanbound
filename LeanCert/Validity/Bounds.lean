@@ -280,7 +280,7 @@ in term proofs or with explicit computation.
 /-- Check upper bound for ExprSupportedWithInv expressions.
     Returns `true` iff evalInterval?1 succeeds and the upper bound is ≤ c.
     NOTE: Noncomputable - cannot be used with native_decide. -/
-noncomputable def checkUpperBoundWithInv (e : Expr) (I : IntervalRat) (c : ℚ) : Bool :=
+def checkUpperBoundWithInv (e : Expr) (I : IntervalRat) (c : ℚ) : Bool :=
   match evalInterval?1 e I with
   | some J => decide (J.hi ≤ c)
   | none => false
@@ -288,21 +288,21 @@ noncomputable def checkUpperBoundWithInv (e : Expr) (I : IntervalRat) (c : ℚ) 
 /-- Check lower bound for ExprSupportedWithInv expressions.
     Returns `true` iff evalInterval?1 succeeds and the lower bound is ≥ c.
     NOTE: Noncomputable - cannot be used with native_decide. -/
-noncomputable def checkLowerBoundWithInv (e : Expr) (I : IntervalRat) (c : ℚ) : Bool :=
+def checkLowerBoundWithInv (e : Expr) (I : IntervalRat) (c : ℚ) : Bool :=
   match evalInterval?1 e I with
   | some J => decide (c ≤ J.lo)
   | none => false
 
 /-- Check strict upper bound for ExprSupportedWithInv expressions.
     NOTE: Noncomputable - cannot be used with native_decide. -/
-noncomputable def checkStrictUpperBoundWithInv (e : Expr) (I : IntervalRat) (c : ℚ) : Bool :=
+def checkStrictUpperBoundWithInv (e : Expr) (I : IntervalRat) (c : ℚ) : Bool :=
   match evalInterval?1 e I with
   | some J => decide (J.hi < c)
   | none => false
 
 /-- Check strict lower bound for ExprSupportedWithInv expressions.
     NOTE: Noncomputable - cannot be used with native_decide. -/
-noncomputable def checkStrictLowerBoundWithInv (e : Expr) (I : IntervalRat) (c : ℚ) : Bool :=
+def checkStrictLowerBoundWithInv (e : Expr) (I : IntervalRat) (c : ℚ) : Bool :=
   match evalInterval?1 e I with
   | some J => decide (c < J.lo)
   | none => false
@@ -2126,5 +2126,245 @@ theorem integral_in_bound (e : Expr) (hsupp : ExprSupportedCore e)
   have hmem := integrateInterval1Core_correct e hsupp I cfg hdom hcontdom
   simp only [IntervalRat.mem_def, getIntegralBound] at hmem ⊢
   exact hmem
+
+/-! ### Single-interval integration for ExprSupportedWithInv -/
+
+/-- Computable single-interval integration using evalInterval?1.
+    Returns `none` if interval evaluation fails (e.g., log domain invalid). -/
+def integrateInterval1WithInv (e : Expr) (I : IntervalRat) : Option IntervalRat :=
+  match evalInterval?1 e I with
+  | some J => some (IntervalRat.mul (IntervalRat.singleton I.width) J)
+  | none => none
+
+/-- Single-interval integration correctness for ExprSupportedWithInv.
+    Requires that evalInterval?1 succeeds on the interval. -/
+theorem integrateInterval1WithInv_correct (e : Expr) (hsupp : ExprSupportedWithInv e)
+    (I : IntervalRat) (bound : IntervalRat)
+    (hsome : integrateInterval1WithInv e I = some bound)
+    (hInt : IntervalIntegrable (fun x => Expr.eval (fun _ => x) e) volume I.lo I.hi) :
+    ∫ x in (I.lo : ℝ)..(I.hi : ℝ), Expr.eval (fun _ => x) e ∈ bound := by
+  unfold integrateInterval1WithInv at hsome
+  cases h_eval : evalInterval?1 e I with
+  | none =>
+    simp only [h_eval] at hsome
+    cases hsome
+  | some J =>
+    simp only [h_eval] at hsome
+    cases hsome
+    -- Bounds from evalInterval?1
+    have hbounds : ∀ x : ℝ, x ∈ I → Expr.eval (fun _ => x) e ∈ J := fun x hx =>
+      evalInterval?1_correct e hsupp I J h_eval x hx
+    have hlo : ∀ x ∈ Set.Icc (I.lo : ℝ) (I.hi : ℝ),
+        (J.lo : ℝ) ≤ Expr.eval (fun _ => x) e := by
+      intro x hx; exact (hbounds x hx).1
+    have hhi : ∀ x ∈ Set.Icc (I.lo : ℝ) (I.hi : ℝ),
+        Expr.eval (fun _ => x) e ≤ (J.hi : ℝ) := by
+      intro x hx; exact (hbounds x hx).2
+    have hIle : (I.lo : ℝ) ≤ I.hi := by exact_mod_cast I.le
+    have ⟨h_lower, h_upper⟩ := LeanCert.Engine.integral_bounds_of_bounds hIle hInt hlo hhi
+    have hwidth : (I.width : ℝ) = (I.hi : ℝ) - (I.lo : ℝ) := by
+      simp only [IntervalRat.width, Rat.cast_sub]
+    have hwidth_nn : (0 : ℝ) ≤ I.width := by exact_mod_cast IntervalRat.width_nonneg I
+    have hJ_le : (J.lo : ℝ) ≤ J.hi := by exact_mod_cast J.le
+    have h_lo' : (I.width : ℝ) * J.lo ≤
+        ∫ x in (↑I.lo)..(↑I.hi), Expr.eval (fun _ => x) e := by
+      calc (I.width : ℝ) * J.lo = J.lo * I.width := by ring
+         _ = J.lo * ((I.hi : ℝ) - I.lo) := by rw [hwidth]
+         _ ≤ ∫ x in (↑I.lo)..(↑I.hi), Expr.eval (fun _ => x) e := h_lower
+    have h_hi' : ∫ x in (↑I.lo)..(↑I.hi), Expr.eval (fun _ => x) e ≤
+        (I.width : ℝ) * J.hi := by
+      calc ∫ x in (↑I.lo)..(↑I.hi), Expr.eval (fun _ => x) e
+         ≤ J.hi * ((I.hi : ℝ) - I.lo) := h_upper
+       _ = J.hi * I.width := by rw [hwidth]
+       _ = (I.width : ℝ) * J.hi := by ring
+    have h1 : (I.width : ℝ) * J.lo ≤ I.width * J.hi :=
+      mul_le_mul_of_nonneg_left hJ_le hwidth_nn
+    rw [IntervalRat.mem_def]
+    constructor
+    · have hcorner : (IntervalRat.mul (IntervalRat.singleton I.width) J).lo =
+          min (min (I.width * J.lo) (I.width * J.hi))
+              (min (I.width * J.lo) (I.width * J.hi)) := rfl
+      simp only [hcorner, min_self, Rat.cast_min, Rat.cast_mul]
+      calc (↑I.width * ↑J.lo) ⊓ (↑I.width * ↑J.hi)
+          = ↑I.width * ↑J.lo := min_eq_left h1
+        _ ≤ ∫ x in (↑I.lo)..(↑I.hi), Expr.eval (fun _ => x) e := h_lo'
+    · have hcorner : (IntervalRat.mul (IntervalRat.singleton I.width) J).hi =
+          max (max (I.width * J.lo) (I.width * J.hi))
+              (max (I.width * J.lo) (I.width * J.hi)) := rfl
+      simp only [hcorner, max_self, Rat.cast_max, Rat.cast_mul]
+      calc ∫ x in (↑I.lo)..(↑I.hi), Expr.eval (fun _ => x) e
+          ≤ ↑I.width * ↑J.hi := h_hi'
+        _ = (↑I.width * ↑J.lo) ⊔ (↑I.width * ↑J.hi) := (max_eq_right h1).symm
+
+/-- Check if the computed integration bound contains a target value.
+    Returns false if interval evaluation fails. -/
+def checkIntegralBoundsWithInv (e : Expr) (I : IntervalRat) (target : ℚ) : Bool :=
+  match evalInterval?1 e I with
+  | some J =>
+      let bound := IntervalRat.mul (IntervalRat.singleton I.width) J
+      decide (bound.lo ≤ target && target ≤ bound.hi)
+  | none => false
+
+/-- **Golden Theorem for Integration Bounds (WithInv)**
+
+If `checkIntegralBoundsWithInv e I target = true`, then the integral lies in the
+computed bound. The `target` parameter is for the `native_decide` workflow. -/
+theorem verify_integral_bound_withInv (e : Expr) (hsupp : ExprSupportedWithInv e)
+    (I : IntervalRat) (_target : ℚ)
+    (h_cert : checkIntegralBoundsWithInv e I _target = true)
+    (hInt : IntervalIntegrable (fun x => Expr.eval (fun _ => x) e) volume I.lo I.hi) :
+    ∃ bound, integrateInterval1WithInv e I = some bound ∧
+      ∫ x in (I.lo : ℝ)..(I.hi : ℝ), Expr.eval (fun _ => x) e ∈ bound := by
+  simp only [checkIntegralBoundsWithInv] at h_cert
+  cases h_eval : evalInterval?1 e I with
+  | none =>
+    simp only [h_eval] at h_cert
+    cases h_cert
+  | some J =>
+    have hbound : integrateInterval1WithInv e I =
+        some (IntervalRat.mul (IntervalRat.singleton I.width) J) := by
+      simp only [integrateInterval1WithInv, h_eval]
+    refine ⟨IntervalRat.mul (IntervalRat.singleton I.width) J, hbound, ?_⟩
+    exact integrateInterval1WithInv_correct e hsupp I
+      (IntervalRat.mul (IntervalRat.singleton I.width) J) hbound hInt
+
+/-! ### Partitioned integration for ExprSupportedWithInv -/
+
+/-- Collect per-subinterval bounds using evalInterval?1.
+    Returns `none` if any subinterval fails. -/
+def collectBoundsWithInv (e : Expr) (parts : List IntervalRat) : Option (List IntervalRat) :=
+  match parts with
+  | [] => some []
+  | I :: Is =>
+      match integrateInterval1WithInv e I, collectBoundsWithInv e Is with
+      | some J, some Js => some (J :: Js)
+      | _, _ => none
+
+/-- Sum bounds over a uniform partition using evalInterval?1. -/
+def integratePartitionWithInv (e : Expr) (I : IntervalRat) (n : ℕ) : Option IntervalRat :=
+  if hn : 0 < n then
+    match collectBoundsWithInv e (uniformPartition I n hn) with
+    | some bounds => some (bounds.foldl IntervalRat.add (IntervalRat.singleton 0))
+    | none => none
+  else
+    none
+
+theorem collectBoundsWithInv_length (e : Expr) :
+    ∀ parts bounds,
+      collectBoundsWithInv e parts = some bounds →
+      bounds.length = parts.length := by
+  intro parts
+  induction parts with
+  | nil =>
+    intro bounds h
+    simp [collectBoundsWithInv] at h
+    cases h
+    rfl
+  | cons I Is ih =>
+    intro bounds h
+    simp [collectBoundsWithInv] at h
+    cases hI : integrateInterval1WithInv e I <;>
+      cases hIs : collectBoundsWithInv e Is <;>
+      simp [hI, hIs] at h
+    cases h
+    have hlen := ih _ hIs
+    simpa [hlen]
+
+theorem collectBoundsWithInv_getElem (e : Expr) :
+    ∀ parts bounds (h : collectBoundsWithInv e parts = some bounds),
+      ∀ i (hi : i < parts.length),
+        integrateInterval1WithInv e (parts[i]'(by simpa using hi)) =
+          some (bounds[i]'(by
+          have hlen := collectBoundsWithInv_length e parts bounds h
+          exact hlen ▸ hi)) := by
+  intro parts
+  induction parts with
+  | nil =>
+    intro bounds h i hi
+    simp [collectBoundsWithInv] at h
+    cases h
+    simp at hi
+  | cons I Is ih =>
+    intro bounds h i hi
+    simp [collectBoundsWithInv] at h
+    cases hI : integrateInterval1WithInv e I <;>
+      cases hIs : collectBoundsWithInv e Is <;>
+      simp [hI, hIs] at h
+    cases h
+    cases i with
+    | zero =>
+      simp [List.getElem_cons, hI]
+    | succ i =>
+      have hi' : i < Is.length := by
+        simpa [List.length] using hi
+      have hrec := ih _ hIs i hi'
+      simp [List.getElem_cons, hrec]
+
+theorem integral_subinterval_bounded_withInv (e : Expr) (hsupp : ExprSupportedWithInv e)
+    (I : IntervalRat) (n : ℕ) (hn : 0 < n) (k : ℕ) (hk : k < n)
+    (bound : IntervalRat)
+    (hsome : integrateInterval1WithInv e (partitionInterval I n hn k hk) = some bound)
+    (hInt : IntervalIntegrable (fun x => Expr.eval (fun _ => x) e) volume I.lo I.hi) :
+    ∫ x in (partitionPoints I n k)..(partitionPoints I n (k + 1)),
+      Expr.eval (fun _ => x) e ∈ bound := by
+  rw [partitionPoints_eq_lo I n hn k hk, partitionPoints_eq_hi I n hn k hk]
+  exact integrateInterval1WithInv_correct e hsupp _ bound hsome
+    (intervalIntegrable_on_partition e I n hn hInt k hk)
+
+theorem integratePartitionWithInv_correct (e : Expr) (hsupp : ExprSupportedWithInv e)
+    (I : IntervalRat) (n : ℕ) (hn : 0 < n) (bound : IntervalRat)
+    (hsome : integratePartitionWithInv e I n = some bound)
+    (hInt : IntervalIntegrable (fun x => Expr.eval (fun _ => x) e) volume I.lo I.hi) :
+    ∫ x in (I.lo : ℝ)..(I.hi : ℝ), Expr.eval (fun _ => x) e ∈ bound := by
+  -- Decompose integral into sum over subintervals
+  rw [integral_partition_sum e I n hn hInt]
+  -- Unpack the computed bounds list
+  unfold integratePartitionWithInv at hsome
+  simp only [hn, ↓reduceDIte] at hsome
+  cases hbounds : collectBoundsWithInv e (uniformPartition I n hn) with
+  | none =>
+    simp [hbounds] at hsome
+  | some bounds =>
+    have hbound_eq : bounds.foldl IntervalRat.add (IntervalRat.singleton 0) = bound := by
+      simpa [hbounds] using hsome
+    -- Express the Finset sum as a List sum
+    have hsum_eq : ∑ k ∈ Finset.range n,
+        ∫ x in (partitionPoints I n k)..(partitionPoints I n (k + 1)),
+          Expr.eval (fun _ => x) e =
+        (List.ofFn (fun k : Fin n =>
+          ∫ x in (partitionPoints I n k)..(partitionPoints I n (k + 1)),
+            Expr.eval (fun _ => x) e)).sum := by
+      simp only [Finset.sum_range, List.sum_ofFn]
+    rw [hsum_eq, ← hbound_eq]
+    -- Set integrals list and bounds list
+    set integrals := List.ofFn (fun k : Fin n =>
+      ∫ x in (partitionPoints I n k)..(partitionPoints I n (k + 1)),
+        Expr.eval (fun _ => x) e) with hintegrals_def
+    -- Show lengths match
+    have hlen : integrals.length = bounds.length := by
+      have hlen_bounds := collectBoundsWithInv_length e _ _ hbounds
+      simp [hintegrals_def, uniformPartition] at hlen_bounds ⊢
+      exact hlen_bounds.symm
+    -- Each integral is bounded by the corresponding bound
+    have hmem : ∀ i (hi : i < integrals.length),
+        integrals[i] ∈ bounds[i]'(hlen ▸ hi) := by
+      intro i hi
+      have hi' : i < n := by
+        simpa [hintegrals_def, List.length_ofFn] using hi
+      simp only [hintegrals_def]
+      rw [List.getElem_ofFn]
+      have hparts :
+          integrateInterval1WithInv e ((uniformPartition I n hn)[i]'(by
+            simp [uniformPartition]; exact hi')) = some (bounds[i]'(hlen ▸ hi)) := by
+        exact collectBoundsWithInv_getElem e _ _ hbounds i (by
+          simpa [uniformPartition] using hi')
+      have hpart_eq :
+          (uniformPartition I n hn)[i]'(by simp [uniformPartition]; exact hi') =
+            partitionInterval I n hn i hi' := by
+        simp [partitionInterval, uniformPartition]
+      rw [hpart_eq] at hparts
+      exact integral_subinterval_bounded_withInv e hsupp I n hn i hi' _ hparts hInt
+    -- Apply sum_mem_foldl_add
+    exact sum_mem_foldl_add hlen hmem
 
 end LeanCert.Validity.Integration

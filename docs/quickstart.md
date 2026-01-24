@@ -2,6 +2,14 @@
 
 This guide walks through the main use cases for LeanCert.
 
+## Installation
+
+```bash
+pip install leancert
+```
+
+That's it - no Lean installation required. The package includes a pre-compiled verification engine.
+
 ## Python SDK
 
 ### Finding Bounds

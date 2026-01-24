@@ -134,17 +134,15 @@ lemma iteratedDerivWithin_Icc_left_eq_iteratedDeriv {f : ℝ → ℝ} {c x : ℝ
   | succ n ih =>
     have hf_n : ContDiff ℝ n f := hf.of_le (by simp : (n : WithTop ℕ∞) ≤ (n + 1 : ℕ))
     rw [iteratedDerivWithin_succ', iteratedDeriv_succ']
-    have h_one_le : (1 : WithTop ℕ∞) ≤ ((n : ℕ) + 1 : ℕ) := by
-      simp only [Nat.cast_add, Nat.cast_one]
-      exact le_add_of_nonneg_left (zero_le _)
+    have h_ne_zero : ((n : ℕ) + 1 : WithTop ℕ∞) ≠ 0 := by simp
     have h_eq_derivWithin : EqOn (derivWithin f (Icc c x)) (deriv f) (Icc c x) := by
       intro y hy
       rcases eq_or_ne y c with rfl | hne_c
       · exact derivWithin_Icc_left_eq_deriv hcx
-            ((hf.differentiable h_one_le).differentiableAt)
+            ((hf.differentiable h_ne_zero).differentiableAt)
       · rcases eq_or_ne y x with rfl | hne_x
         · exact derivWithin_Icc_right_eq_deriv hcx
-              ((hf.differentiable h_one_le).differentiableAt)
+              ((hf.differentiable h_ne_zero).differentiableAt)
         · apply derivWithin_of_mem_nhds
           apply Icc_mem_nhds
           · exact lt_of_le_of_ne hy.1 (Ne.symm hne_c)
@@ -174,20 +172,18 @@ lemma iteratedDerivWithin_Icc_left_eq_iteratedDeriv_of_isOpen {f : ℝ → ℝ} 
   | succ n ih =>
     have hf_n : ContDiffOn ℝ n f U := hf.of_le (by simp : (n : WithTop ℕ∞) ≤ (n + 1 : ℕ))
     rw [iteratedDerivWithin_succ', iteratedDeriv_succ']
-    have h_one_le : (1 : WithTop ℕ∞) ≤ ((n : ℕ) + 1 : ℕ) := by
-      simp only [Nat.cast_add, Nat.cast_one]
-      exact le_add_of_nonneg_left (zero_le _)
+    have h_ne_zero : ((n : ℕ) + 1 : WithTop ℕ∞) ≠ 0 := by simp
     -- For each y in Icc c x, derivWithin f = deriv f
     have h_eq_derivWithin : EqOn (derivWithin f (Icc c x)) (deriv f) (Icc c x) := by
       intro y hy
       rcases eq_or_ne y c with rfl | hne_c
       · -- At c: use that f is differentiable at c (from ContDiffOn on open U)
         exact derivWithin_Icc_left_eq_deriv hcx
-            ((hf.differentiableOn h_one_le).differentiableAt (hU_open.mem_nhds hcU))
+            ((hf.differentiableOn h_ne_zero).differentiableAt (hU_open.mem_nhds hcU))
       · rcases eq_or_ne y x with rfl | hne_x
         · -- At x: use right endpoint lemma
           exact derivWithin_Icc_right_eq_deriv hcx
-              ((hf.differentiableOn h_one_le).differentiableAt (hU_open.mem_nhds (hI_sub hy)))
+              ((hf.differentiableOn h_ne_zero).differentiableAt (hU_open.mem_nhds (hI_sub hy)))
         · -- Interior: Icc is a neighborhood
           apply derivWithin_of_mem_nhds
           apply Icc_mem_nhds
@@ -284,7 +280,7 @@ private lemma iteratedDeriv_translate_of_contDiffOn {f : ℝ → ℝ} {k : ℝ} 
       filter_upwards [h_nhds_mem] with y hy_mem
       have hf' : ContDiffOn ℝ 1 f U := hf.of_le (by norm_cast; omega)
       have hdiff : DifferentiableAt ℝ f (y + k) :=
-        (hf'.differentiableOn le_rfl).differentiableAt (hU_open.mem_nhds hy_mem)
+        (hf'.differentiableOn one_ne_zero).differentiableAt (hU_open.mem_nhds hy_mem)
       have hlin : DifferentiableAt ℝ (fun z => z + k) y :=
         differentiableAt_id.add (differentiableAt_const _)
       have h := deriv_comp y hdiff hlin
@@ -503,7 +499,7 @@ lemma iteratedDeriv_reflect {f : ℝ → ℝ} {c : ℝ} {n : ℕ} (hf : ContDiff
     have hderiv_eq : deriv (fun x => f (x + 2 * c)) = fun x => deriv f (x + 2 * c) := by
       ext x
       have hdiff : DifferentiableAt ℝ f (x + 2 * c) :=
-        (hf'.differentiable (by norm_cast; omega : (1 : WithTop ℕ∞) ≤ (n + 1 : ℕ))).differentiableAt
+        (hf'.differentiable (by simp : ((n : ℕ) + 1 : WithTop ℕ∞) ≠ 0)).differentiableAt
       have hlin : DifferentiableAt ℝ (fun y => y + 2 * c) x :=
         differentiableAt_id.add (differentiableAt_const _)
       have h1 := deriv_comp x hdiff hlin
