@@ -4231,9 +4231,9 @@ elab "interval_bound_adaptive" iters:(num)? : tactic => do
     proveForallLeAdaptive goal interval func bound maxIters
   | .forallGe _name interval func bound =>
     proveForallGeAdaptive goal interval func bound maxIters
-  | .forallLt _name interval func bound =>
+  | .forallLt _name _interval _func _bound =>
     throwError "interval_bound_adaptive: Strict bounds not yet supported"
-  | .forallGt _name interval func bound =>
+  | .forallGt _name _interval _func _bound =>
     throwError "interval_bound_adaptive: Strict bounds not yet supported"
 
 /-! ## Unified Interval Tactic

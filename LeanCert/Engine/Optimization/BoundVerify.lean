@@ -291,34 +291,6 @@ theorem verifyLowerBound_correct (e : Expr) (hsupp : ExprSupported e)
     ≤ (globalMinimize e B cfg.toGlobalOptConfig).bound.lo := by exact_mod_cast hverify
     _ ≤ Expr.eval ρ e := hmin
 
-/-- Single-variable upper bound correctness -/
-theorem verifyUpperBound1_correct (e : Expr) (hsupp : ExprSupported e)
-    (I : IntervalRat) (bound : ℚ) (cfg : BoundVerifyConfig)
-    (hverify : (globalMaximize e (intervalToBox I) cfg.toGlobalOptConfig).bound.hi ≤ bound) :
-    ∀ x ∈ I, Expr.eval (fun _ => x) e ≤ bound := by
-  intro x hx
-  have hmem := intervalToBox_envMem I x hx
-  have hlen : (intervalToBox I).length = 1 := rfl
-  have hzero : ∀ i, i ≥ (intervalToBox I).length → (fun _ => x) i = 0 := by
-    intro i hi
-    -- This is false, but we don't actually need the value to be 0,
-    -- just that it doesn't affect the evaluation for a 1-variable expression
-    -- Actually, we need to handle this differently...
-    sorry -- TODO: This requires showing that e only uses var 0
-  exact verifyUpperBound_correct e hsupp (intervalToBox I) bound cfg hverify (fun _ => x) hmem hzero
-
-/-- Single-variable lower bound correctness -/
-theorem verifyLowerBound1_correct (e : Expr) (hsupp : ExprSupported e)
-    (I : IntervalRat) (bound : ℚ) (cfg : BoundVerifyConfig)
-    (hverify : (globalMinimize e (intervalToBox I) cfg.toGlobalOptConfig).bound.lo ≥ bound) :
-    ∀ x ∈ I, bound ≤ Expr.eval (fun _ => x) e := by
-  intro x hx
-  have hmem := intervalToBox_envMem I x hx
-  have hzero : ∀ i, i ≥ (intervalToBox I).length → (fun _ => x) i = 0 := by
-    intro i hi
-    sorry -- TODO: Same issue as above
-  exact verifyLowerBound_correct e hsupp (intervalToBox I) bound cfg hverify (fun _ => x) hmem hzero
-
 /-! ### Expression uses only var 0 -/
 
 /-- Predicate: expression only uses variable index 0 -/
