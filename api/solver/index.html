@@ -1,0 +1,4134 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Certified numerical computation and bound verification for Lean 4.">
+      
+      
+      
+        <link rel="canonical" href="https://docs.leancert.io/api/solver/">
+      
+      
+        <link rel="prev" href="../../architecture/root-finding/">
+      
+      
+        <link rel="next" href="../config/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>Solver API - LeanCert</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="purple">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#solver-api" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="LeanCert" class="md-header__button md-logo" aria-label="LeanCert" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            LeanCert
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Solver API
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="purple"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="purple"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/alerad/leancert" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    alerad/leancert
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="LeanCert" class="md-nav__button md-logo" aria-label="LeanCert" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    LeanCert
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/alerad/leancert" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    alerad/leancert
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../discovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Discovery Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../choosing-tactics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing Tactics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../end-to-end-example/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    End-to-End Example
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lean Tactics
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Lean Tactics
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tactics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/root-finding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Root Finding
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python SDK
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Python SDK
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Solver API
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Solver API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#solver-class" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solver Class
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#leancert.solver.Solver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solver
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Solver">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.__init__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        __init__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.find_bounds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        find_bounds
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="find_bounds">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.find_bounds--default-uses-dyadic-backend-fast-avoids-denominator-explosion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Default: uses Dyadic backend (fast, avoids denominator explosion)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.find_bounds--dependency-problem-auto-detected-uses-affine-for-tight-bounds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dependency problem auto-detected, uses Affine for tight bounds:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.find_bounds--explicit-backend-choice-overrides-auto-selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Explicit backend choice overrides auto-selection:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.find_roots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        find_roots
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.find_unique_root" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        find_unique_root
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.verify_bound" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        verify_bound
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.integrate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        integrate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.synthesize_min_witness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        synthesize_min_witness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.synthesize_max_witness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        synthesize_max_witness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.synthesize_root_witness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        synthesize_root_witness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.compute_lipschitz_bound" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        compute_lipschitz_bound
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.diagnose_bound_failure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        diagnose_bound_failure
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#convenience-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Convenience Functions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#leancert.solver.find_bounds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        find_bounds
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#leancert.solver.find_roots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        find_roots
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#leancert.solver.find_unique_root" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        find_unique_root
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#leancert.solver.verify_bound" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        verify_bound
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#leancert.solver.integrate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        integrate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#witness-synthesis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Witness Synthesis
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Witness Synthesis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#supported-goal-forms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supported Goal Forms
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-minimum-witness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example: Minimum Witness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-root-witness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example: Root Witness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#proof-strategy-racing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proof Strategy Racing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#incremental-refinement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Incremental Refinement
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lipschitz-bounds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lipschitz Bounds
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#failure-diagnosis-cegpr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Failure Diagnosis (CEGPR)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Result Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../expr/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Expressions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/pytorch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PyTorch Export
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bug Validation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Neural Networks
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Neural Networks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ml/neural-networks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ml/distillation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Distillation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/golden-theorems/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Golden Theorems
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/verification-status/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Verification Status
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#solver-class" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solver Class
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#leancert.solver.Solver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solver
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Solver">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.__init__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        __init__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.find_bounds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        find_bounds
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="find_bounds">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.find_bounds--default-uses-dyadic-backend-fast-avoids-denominator-explosion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Default: uses Dyadic backend (fast, avoids denominator explosion)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.find_bounds--dependency-problem-auto-detected-uses-affine-for-tight-bounds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dependency problem auto-detected, uses Affine for tight bounds:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.find_bounds--explicit-backend-choice-overrides-auto-selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Explicit backend choice overrides auto-selection:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.find_roots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        find_roots
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.find_unique_root" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        find_unique_root
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.verify_bound" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        verify_bound
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.integrate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        integrate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.synthesize_min_witness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        synthesize_min_witness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.synthesize_max_witness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        synthesize_max_witness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.synthesize_root_witness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        synthesize_root_witness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.compute_lipschitz_bound" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        compute_lipschitz_bound
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#leancert.solver.Solver.diagnose_bound_failure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        diagnose_bound_failure
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#convenience-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Convenience Functions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#leancert.solver.find_bounds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        find_bounds
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#leancert.solver.find_roots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        find_roots
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#leancert.solver.find_unique_root" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        find_unique_root
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#leancert.solver.verify_bound" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        verify_bound
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#leancert.solver.integrate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        integrate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#witness-synthesis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Witness Synthesis
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Witness Synthesis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#supported-goal-forms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supported Goal Forms
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-minimum-witness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example: Minimum Witness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-root-witness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example: Root Witness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#proof-strategy-racing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proof Strategy Racing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#incremental-refinement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Incremental Refinement
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lipschitz-bounds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lipschitz Bounds
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#failure-diagnosis-cegpr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Failure Diagnosis (CEGPR)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="./" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Python SDK
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="solver-api">Solver API</h1>
+<p>The <code>Solver</code> class is the main entry point for the Python SDK. It manages communication with the Lean kernel and handles the verification lifecycle.</p>
+<h2 id="solver-class">Solver Class</h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="leancert.solver.Solver" class="doc doc-heading">
+            <code>leancert.solver.Solver</code>
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>High-level interface for LeanCert verification.</p>
+<p>Manages compilation and communication with the Lean kernel.
+Use as a context manager for automatic cleanup.</p>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>with Solver() as solver:
+    x = var('x')
+    result = solver.find_bounds(x**2, {'x': (0, 1)})</p>
+</details>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="leancert.solver.Solver.__init__" class="doc doc-heading">
+            <code class="highlight language-python"><span class="fm">__init__</span><span class="p">(</span><span class="n">client</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">auto_simplify</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_affine</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Initialize the solver.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>client</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="leancert.client.LeanClient">LeanClient</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional LeanClient instance. If None, creates a new one.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>auto_simplify</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True (default), automatically simplify expressions
+          before sending to the kernel. This reduces the dependency
+          problem in interval arithmetic by canceling like terms.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>auto_affine</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True (default), automatically switch to Affine backend
+        for expressions with the dependency problem (same variable
+        appears multiple times). This gives much tighter bounds
+        for expressions like x - x, x * (1 - x), etc.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="leancert.solver.Solver.find_bounds" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">find_bounds</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">Config</span><span class="p">())</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Find global minimum and maximum bounds.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>expr</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.expr.Expr" href="../expr/#leancert.expr.Expr">Expr</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Expression to analyze.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>domain</code>
+            </td>
+            <td>
+                  <code><span title="typing.Union">Union</span>[<span title="leancert.domain.Interval">Interval</span>, <span title="leancert.domain.Box">Box</span>, <span title="tuple">tuple</span>, <span title="dict">dict</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Domain specification (Interval, Box, tuple, or dict).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>config</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.config.Config
+
+
+  
+      dataclass
+  " href="../config/#leancert.config.Config">Config</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Solver configuration. Defaults to DYADIC backend.
+   For expressions with repeated variables (e.g., x - x, x*(1-x)),
+   AFFINE backend is automatically used for tighter bounds.</p>
+              </div>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.config.Config
+
+
+  
+      dataclass
+  " href="../config/#leancert.config.Config">Config</a>()</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.result.BoundsResult
+
+
+  
+      dataclass
+  " href="../types/#leancert.result.BoundsResult">BoundsResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>BoundsResult with verified min/max intervals.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<h4 id="leancert.solver.Solver.find_bounds--default-uses-dyadic-backend-fast-avoids-denominator-explosion">Default: uses Dyadic backend (fast, avoids denominator explosion)</h4>
+<p>result = solver.find_bounds(x**2, {'x': (-1, 1)})</p>
+<h4 id="leancert.solver.Solver.find_bounds--dependency-problem-auto-detected-uses-affine-for-tight-bounds">Dependency problem auto-detected, uses Affine for tight bounds:</h4>
+<p>result = solver.find_bounds(x - x, {'x': (-1, 1)})  # Returns ~[0, 0]</p>
+<h4 id="leancert.solver.Solver.find_bounds--explicit-backend-choice-overrides-auto-selection">Explicit backend choice overrides auto-selection:</h4>
+<p>result = solver.find_bounds(expr, domain, Config.affine())</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="leancert.solver.Solver.find_roots" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">find_roots</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">Config</span><span class="p">())</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Find roots of a univariate expression.</p>
+<p>Uses interval bisection with sign change detection. The algorithm
+subdivides the domain and checks each subinterval for roots.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>expr</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.expr.Expr" href="../expr/#leancert.expr.Expr">Expr</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Expression to find roots of.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>domain</code>
+            </td>
+            <td>
+                  <code><span title="typing.Union">Union</span>[<span title="leancert.domain.Interval">Interval</span>, <span title="leancert.domain.Box">Box</span>, <span title="tuple">tuple</span>, <span title="dict">dict</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Search domain (must be 1D).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>config</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.config.Config
+
+
+  
+      dataclass
+  " href="../config/#leancert.config.Config">Config</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Solver configuration.</p>
+              </div>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.config.Config
+
+
+  
+      dataclass
+  " href="../config/#leancert.config.Config">Config</a>()</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.result.RootsResult
+
+
+  
+      dataclass
+  " href="../types/#leancert.result.RootsResult">RootsResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>RootsResult with root intervals. Each RootInterval has a status:</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.result.RootsResult
+
+
+  
+      dataclass
+  " href="../types/#leancert.result.RootsResult">RootsResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <ul>
+<li>'confirmed': Sign change detected (f(lo) and f(hi) have opposite signs).
+The Intermediate Value Theorem GUARANTEES a root exists in this interval.
+This is mathematically certain.</li>
+</ul>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.result.RootsResult
+
+
+  
+      dataclass
+  " href="../types/#leancert.result.RootsResult">RootsResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <ul>
+<li>'possible': The interval contains zero but no sign change was detected.
+This can happen when:</li>
+<li>The root is a tangent point (e.g., x² = 0 at x=0)</li>
+<li>Interval bounds are too loose to detect sign change</li>
+<li>Multiple roots in the interval cancel out
+A root MAY exist but is not proven.</li>
+</ul>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.result.RootsResult
+
+
+  
+      dataclass
+  " href="../types/#leancert.result.RootsResult">RootsResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <ul>
+<li>'no_root': The interval provably contains no roots (f(x) is bounded
+away from zero throughout the interval).</li>
+</ul>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<p>result = solver.find_roots(x**2 - 1, {'x': (-2, 2)})
+for root in result.roots:
+...     print(f"{root.interval}: {root.status}")
+[-1.001, -0.999]: confirmed  # Sign change proves root at x=-1
+[0.999, 1.001]: confirmed    # Sign change proves root at x=1</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="leancert.solver.Solver.find_unique_root" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">find_unique_root</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">Config</span><span class="p">())</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Find a unique root using interval Newton method.</p>
+<p>This method uses interval Newton iteration to prove both EXISTENCE
+and UNIQUENESS of a root. It's mathematically stronger than
+find_roots() which only proves existence.</p>
+<p>The interval Newton method works by:
+1. Computing the interval derivative f'([x])
+2. Performing Newton step: N(x) = m - f(m)/f'([x]) where m = midpoint
+3. If N(x) ⊂ [x] (contracts), uniqueness is proven by Brouwer fixed point</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>expr</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.expr.Expr" href="../expr/#leancert.expr.Expr">Expr</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Expression to find root of.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>domain</code>
+            </td>
+            <td>
+                  <code><span title="typing.Union">Union</span>[<span title="leancert.domain.Interval">Interval</span>, <span title="leancert.domain.Box">Box</span>, <span title="tuple">tuple</span>, <span title="dict">dict</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Search domain (must be 1D).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>config</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.config.Config
+
+
+  
+      dataclass
+  " href="../config/#leancert.config.Config">Config</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Solver configuration.</p>
+              </div>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.config.Config
+
+
+  
+      dataclass
+  " href="../config/#leancert.config.Config">Config</a>()</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.result.UniqueRootResult
+
+
+  
+      dataclass
+  " href="../types/#leancert.result.UniqueRootResult">UniqueRootResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>UniqueRootResult with:</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.result.UniqueRootResult
+
+
+  
+      dataclass
+  " href="../types/#leancert.result.UniqueRootResult">UniqueRootResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <ul>
+<li>unique: True if a unique root is PROVEN to exist</li>
+</ul>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.result.UniqueRootResult
+
+
+  
+      dataclass
+  " href="../types/#leancert.result.UniqueRootResult">UniqueRootResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <ul>
+<li>interval: Containing interval for the root</li>
+</ul>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.result.UniqueRootResult
+
+
+  
+      dataclass
+  " href="../types/#leancert.result.UniqueRootResult">UniqueRootResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <ul>
+<li>reason: Explanation of the result:</li>
+<li>'contraction': Newton iteration contracted, proving uniqueness</li>
+<li>'no_contraction': Could not prove uniqueness (root may still exist)</li>
+<li>'no_root': Interval provably contains no roots</li>
+</ul>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Note</summary>
+  <p>'no_contraction' does NOT mean no root exists. It means uniqueness
+couldn't be proven. The interval might:
+- Contain multiple roots
+- Be too wide for Newton to contract
+- Have a nearly-zero derivative (ill-conditioned)</p>
+<p>Use find_roots() first to locate candidate intervals, then
+find_unique_root() on smaller subintervals if uniqueness matters.</p>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="leancert.solver.Solver.verify_bound" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">verify_bound</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">upper</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">lower</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">Config</span><span class="p">(),</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;adaptive&#39;</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Verify that expression satisfies given bounds with False Positive Filtering.</p>
+<p>Pipeline:
+1. Symbolic Simplification (handles dependency problem)
+2. Global Optimization (Branch &amp; Bound)
+3. Counterexample Concretization (filters false positives)</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>expr</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.expr.Expr" href="../expr/#leancert.expr.Expr">Expr</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Expression to verify.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>domain</code>
+            </td>
+            <td>
+                  <code><span title="typing.Union">Union</span>[<span title="leancert.domain.Interval">Interval</span>, <span title="leancert.domain.Box">Box</span>, <span title="tuple">tuple</span>, <span title="dict">dict</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Domain specification.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>upper</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Upper bound to verify (expr &lt;= upper).</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>lower</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Lower bound to verify (expr &gt;= lower).</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>config</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.config.Config
+
+
+  
+      dataclass
+  " href="../config/#leancert.config.Config">Config</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Solver configuration.</p>
+              </div>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.config.Config
+
+
+  
+      dataclass
+  " href="../config/#leancert.config.Config">Config</a>()</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>method</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Verification method - 'adaptive' (default, uses optimization
+   with false positive filtering) or 'interval' (fast, conservative).</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;adaptive&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>True if verified.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="leancert.exceptions.VerificationFailed">VerificationFailed</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If bound verification fails AND is confirmed by
+               concrete evaluation (not a false positive).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If method is invalid or no bounds specified.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="leancert.solver.Solver.integrate" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">integrate</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">partitions</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">Config</span><span class="p">())</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Compute rigorous integral bounds.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>expr</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.expr.Expr" href="../expr/#leancert.expr.Expr">Expr</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Expression to integrate.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>domain</code>
+            </td>
+            <td>
+                  <code><span title="typing.Union">Union</span>[<span title="leancert.domain.Interval">Interval</span>, <span title="leancert.domain.Box">Box</span>, <span title="tuple">tuple</span>, <span title="dict">dict</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Integration domain.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>partitions</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Number of partitions.</p>
+              </div>
+            </td>
+            <td>
+                  <code>10</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>config</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.config.Config
+
+
+  
+      dataclass
+  " href="../config/#leancert.config.Config">Config</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Solver configuration.</p>
+              </div>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.config.Config
+
+
+  
+      dataclass
+  " href="../config/#leancert.config.Config">Config</a>()</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.result.IntegralResult
+
+
+  
+      dataclass
+  " href="../types/#leancert.result.IntegralResult">IntegralResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>IntegralResult with verified bounds.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="leancert.solver.Solver.synthesize_min_witness" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">synthesize_min_witness</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">Config</span><span class="p">())</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Synthesize a witness for ∃ m, ∀ x ∈ I, f(x) ≥ m.</p>
+<p>Finds the global minimum of the expression over the domain and returns
+a witness value m along with the point where the minimum is achieved.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>expr</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.expr.Expr" href="../expr/#leancert.expr.Expr">Expr</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Expression to minimize.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>domain</code>
+            </td>
+            <td>
+                  <code><span title="typing.Union">Union</span>[<span title="leancert.domain.Interval">Interval</span>, <span title="leancert.domain.Box">Box</span>, <span title="tuple">tuple</span>, <span title="dict">dict</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Domain specification.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>config</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.config.Config
+
+
+  
+      dataclass
+  " href="../config/#leancert.config.Config">Config</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Solver configuration. Use race_strategies=True to try
+   multiple backends in parallel.</p>
+              </div>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.config.Config
+
+
+  
+      dataclass
+  " href="../config/#leancert.config.Config">Config</a>()</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.result.MinWitnessResult
+
+
+  
+      dataclass
+  " href="../types/#leancert.result.MinWitnessResult">MinWitnessResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>MinWitnessResult containing the witness value and point.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<p>result = solver.synthesize_min_witness(x**2, {'x': (-1, 1)})
+print(result.witness_value)  # ~0
+print(result.to_lean_tactic())  # Lean proof code</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="leancert.solver.Solver.synthesize_max_witness" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">synthesize_max_witness</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">Config</span><span class="p">())</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Synthesize a witness for ∃ M, ∀ x ∈ I, f(x) ≤ M.</p>
+<p>Finds the global maximum of the expression over the domain and returns
+a witness value M along with the point where the maximum is achieved.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>expr</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.expr.Expr" href="../expr/#leancert.expr.Expr">Expr</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Expression to maximize.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>domain</code>
+            </td>
+            <td>
+                  <code><span title="typing.Union">Union</span>[<span title="leancert.domain.Interval">Interval</span>, <span title="leancert.domain.Box">Box</span>, <span title="tuple">tuple</span>, <span title="dict">dict</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Domain specification.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>config</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.config.Config
+
+
+  
+      dataclass
+  " href="../config/#leancert.config.Config">Config</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Solver configuration.</p>
+              </div>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.config.Config
+
+
+  
+      dataclass
+  " href="../config/#leancert.config.Config">Config</a>()</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.result.MaxWitnessResult
+
+
+  
+      dataclass
+  " href="../types/#leancert.result.MaxWitnessResult">MaxWitnessResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>MaxWitnessResult containing the witness value and point.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="leancert.solver.Solver.synthesize_root_witness" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">synthesize_root_witness</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">Config</span><span class="p">())</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Synthesize a witness for ∃ x ∈ I, f(x) = 0.</p>
+<p>Finds a root of the expression in the domain and returns a witness
+point along with the enclosing interval.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>expr</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.expr.Expr" href="../expr/#leancert.expr.Expr">Expr</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Expression to find root of.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>domain</code>
+            </td>
+            <td>
+                  <code><span title="typing.Union">Union</span>[<span title="leancert.domain.Interval">Interval</span>, <span title="leancert.domain.Box">Box</span>, <span title="tuple">tuple</span>, <span title="dict">dict</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Search domain (must be 1D).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>config</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.config.Config
+
+
+  
+      dataclass
+  " href="../config/#leancert.config.Config">Config</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Solver configuration.</p>
+              </div>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.config.Config
+
+
+  
+      dataclass
+  " href="../config/#leancert.config.Config">Config</a>()</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.result.RootWitnessResult
+
+
+  
+      dataclass
+  " href="../types/#leancert.result.RootWitnessResult">RootWitnessResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>RootWitnessResult containing the witness point and interval.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="leancert.exceptions.VerificationFailed">VerificationFailed</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If no root can be found/proven.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="leancert.solver.Solver.compute_lipschitz_bound" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">compute_lipschitz_bound</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">Config</span><span class="p">())</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Compute a verified Lipschitz bound for an expression over a domain.</p>
+<p>Uses forward-mode automatic differentiation to bound all partial
+derivatives |∂f/∂xᵢ| over the domain. The Lipschitz constant is
+L = max_i sup_{x ∈ domain} |∂f/∂xᵢ(x)|.</p>
+<p>This is VERIFIED by the Lean kernel - the derivative bounds are
+computed using interval arithmetic with correctness proofs.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>expr</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.expr.Expr" href="../expr/#leancert.expr.Expr">Expr</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Expression to compute Lipschitz bound for.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>domain</code>
+            </td>
+            <td>
+                  <code><span title="typing.Union">Union</span>[<span title="leancert.domain.Interval">Interval</span>, <span title="leancert.domain.Box">Box</span>, <span title="tuple">tuple</span>, <span title="dict">dict</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Domain over which to compute the bound.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>config</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.config.Config
+
+
+  
+      dataclass
+  " href="../config/#leancert.config.Config">Config</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Solver configuration.</p>
+              </div>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.config.Config
+
+
+  
+      dataclass
+  " href="../config/#leancert.config.Config">Config</a>()</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>&#39;LipschitzResult&#39;</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>LipschitzResult containing:
+- lipschitz_bound: The verified Lipschitz constant L
+- gradient_bounds: Dict mapping variable names to derivative intervals
+- certificate: Verification certificate</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<p>solver = Solver()
+x = var('x')
+result = solver.compute_lipschitz_bound(x**2, {'x': (0, 1)})
+print(result.lipschitz_bound)  # Should be 2 (max of |2x| on [0,1])
+2</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>        <p>Use case (ε-δ continuity):
+    If L is the Lipschitz constant, then for any ε &gt; 0,
+    setting δ = ε/L guarantees |f(x) - f(a)| &lt; ε whenever |x - a| &lt; δ.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="leancert.solver.Solver.diagnose_bound_failure" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">diagnose_bound_failure</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">upper</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">lower</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">Config</span><span class="p">())</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Diagnose why a bound verification would fail.</p>
+<p>This is the foundation for Counterexample-Guided Proof Refinement (CEGPR).
+It finds the worst-case point and suggests a bound that would succeed.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>expr</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.expr.Expr" href="../expr/#leancert.expr.Expr">Expr</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Expression to analyze.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>domain</code>
+            </td>
+            <td>
+                  <code><span title="typing.Union">Union</span>[<span title="leancert.domain.Interval">Interval</span>, <span title="leancert.domain.Box">Box</span>, <span title="tuple">tuple</span>, <span title="dict">dict</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Domain specification.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>upper</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Upper bound to check.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>lower</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Lower bound to check.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>config</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.config.Config
+
+
+  
+      dataclass
+  " href="../config/#leancert.config.Config">Config</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Solver configuration.</p>
+              </div>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.config.Config
+
+
+  
+      dataclass
+  " href="../config/#leancert.config.Config">Config</a>()</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<a class="autorefs autorefs-internal" title="leancert.result.FailureDiagnosis
+
+
+  
+      dataclass
+  " href="../types/#leancert.result.FailureDiagnosis">FailureDiagnosis</a>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>FailureDiagnosis if the bound would fail, None if it would succeed.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="convenience-functions">Convenience Functions</h2>
+<p>These standalone functions use a default solver instance for quick scripting.</p>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="leancert.solver.find_bounds" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">leancert</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">find_bounds</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">Config</span><span class="p">())</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+
+        <p>Find global min/max bounds for an expression.</p>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>python/leancert/solver.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1812">1812</a></span>
+<span class="normal"><a href="#__codelineno-0-1813">1813</a></span>
+<span class="normal"><a href="#__codelineno-0-1814">1814</a></span>
+<span class="normal"><a href="#__codelineno-0-1815">1815</a></span>
+<span class="normal"><a href="#__codelineno-0-1816">1816</a></span>
+<span class="normal"><a href="#__codelineno-0-1817">1817</a></span>
+<span class="normal"><a href="#__codelineno-0-1818">1818</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-1812" name="__codelineno-0-1812"></a><span class="k">def</span><span class="w"> </span><span class="nf">find_bounds</span><span class="p">(</span>
+<a id="__codelineno-0-1813" name="__codelineno-0-1813"></a>    <span class="n">expr</span><span class="p">:</span> <span class="n">Expr</span><span class="p">,</span>
+<a id="__codelineno-0-1814" name="__codelineno-0-1814"></a>    <span class="n">domain</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Interval</span><span class="p">,</span> <span class="n">Box</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">,</span> <span class="nb">dict</span><span class="p">],</span>
+<a id="__codelineno-0-1815" name="__codelineno-0-1815"></a>    <span class="n">config</span><span class="p">:</span> <span class="n">Config</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(),</span>
+<a id="__codelineno-0-1816" name="__codelineno-0-1816"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BoundsResult</span><span class="p">:</span>
+<a id="__codelineno-0-1817" name="__codelineno-0-1817"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Find global min/max bounds for an expression.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-1818" name="__codelineno-0-1818"></a>    <span class="k">return</span> <span class="n">_get_solver</span><span class="p">()</span><span class="o">.</span><span class="n">find_bounds</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="leancert.solver.find_roots" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">leancert</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">find_roots</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">Config</span><span class="p">())</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+
+        <p>Find roots of a univariate expression.</p>
+<p>Returns RootInterval objects with status:
+- 'confirmed': Sign change detected, root GUARANTEED by IVT
+- 'possible': Contains zero but no sign change (may or may not have root)
+- 'no_root': Provably no roots in interval</p>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>python/leancert/solver.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1885">1885</a></span>
+<span class="normal"><a href="#__codelineno-0-1886">1886</a></span>
+<span class="normal"><a href="#__codelineno-0-1887">1887</a></span>
+<span class="normal"><a href="#__codelineno-0-1888">1888</a></span>
+<span class="normal"><a href="#__codelineno-0-1889">1889</a></span>
+<span class="normal"><a href="#__codelineno-0-1890">1890</a></span>
+<span class="normal"><a href="#__codelineno-0-1891">1891</a></span>
+<span class="normal"><a href="#__codelineno-0-1892">1892</a></span>
+<span class="normal"><a href="#__codelineno-0-1893">1893</a></span>
+<span class="normal"><a href="#__codelineno-0-1894">1894</a></span>
+<span class="normal"><a href="#__codelineno-0-1895">1895</a></span>
+<span class="normal"><a href="#__codelineno-0-1896">1896</a></span>
+<span class="normal"><a href="#__codelineno-0-1897">1897</a></span>
+<span class="normal"><a href="#__codelineno-0-1898">1898</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-1885" name="__codelineno-0-1885"></a><span class="k">def</span><span class="w"> </span><span class="nf">find_roots</span><span class="p">(</span>
+<a id="__codelineno-0-1886" name="__codelineno-0-1886"></a>    <span class="n">expr</span><span class="p">:</span> <span class="n">Expr</span><span class="p">,</span>
+<a id="__codelineno-0-1887" name="__codelineno-0-1887"></a>    <span class="n">domain</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Interval</span><span class="p">,</span> <span class="n">Box</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">,</span> <span class="nb">dict</span><span class="p">],</span>
+<a id="__codelineno-0-1888" name="__codelineno-0-1888"></a>    <span class="n">config</span><span class="p">:</span> <span class="n">Config</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(),</span>
+<a id="__codelineno-0-1889" name="__codelineno-0-1889"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RootsResult</span><span class="p">:</span>
+<a id="__codelineno-0-1890" name="__codelineno-0-1890"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-1891" name="__codelineno-0-1891"></a><span class="sd">    Find roots of a univariate expression.</span>
+<a id="__codelineno-0-1892" name="__codelineno-0-1892"></a>
+<a id="__codelineno-0-1893" name="__codelineno-0-1893"></a><span class="sd">    Returns RootInterval objects with status:</span>
+<a id="__codelineno-0-1894" name="__codelineno-0-1894"></a><span class="sd">    - &#39;confirmed&#39;: Sign change detected, root GUARANTEED by IVT</span>
+<a id="__codelineno-0-1895" name="__codelineno-0-1895"></a><span class="sd">    - &#39;possible&#39;: Contains zero but no sign change (may or may not have root)</span>
+<a id="__codelineno-0-1896" name="__codelineno-0-1896"></a><span class="sd">    - &#39;no_root&#39;: Provably no roots in interval</span>
+<a id="__codelineno-0-1897" name="__codelineno-0-1897"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-1898" name="__codelineno-0-1898"></a>    <span class="k">return</span> <span class="n">_get_solver</span><span class="p">()</span><span class="o">.</span><span class="n">find_roots</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="leancert.solver.find_unique_root" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">leancert</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">find_unique_root</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">Config</span><span class="p">())</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+
+        <p>Find a unique root using interval Newton method.</p>
+<p>Returns UniqueRootResult with:
+- unique=True: A unique root is PROVEN to exist (Newton contracted)
+- unique=False with reason='no_contraction': Couldn't prove uniqueness
+  (root may still exist, try a smaller interval)
+- unique=False with reason='no_root': Provably no roots</p>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>python/leancert/solver.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1901">1901</a></span>
+<span class="normal"><a href="#__codelineno-0-1902">1902</a></span>
+<span class="normal"><a href="#__codelineno-0-1903">1903</a></span>
+<span class="normal"><a href="#__codelineno-0-1904">1904</a></span>
+<span class="normal"><a href="#__codelineno-0-1905">1905</a></span>
+<span class="normal"><a href="#__codelineno-0-1906">1906</a></span>
+<span class="normal"><a href="#__codelineno-0-1907">1907</a></span>
+<span class="normal"><a href="#__codelineno-0-1908">1908</a></span>
+<span class="normal"><a href="#__codelineno-0-1909">1909</a></span>
+<span class="normal"><a href="#__codelineno-0-1910">1910</a></span>
+<span class="normal"><a href="#__codelineno-0-1911">1911</a></span>
+<span class="normal"><a href="#__codelineno-0-1912">1912</a></span>
+<span class="normal"><a href="#__codelineno-0-1913">1913</a></span>
+<span class="normal"><a href="#__codelineno-0-1914">1914</a></span>
+<span class="normal"><a href="#__codelineno-0-1915">1915</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-1901" name="__codelineno-0-1901"></a><span class="k">def</span><span class="w"> </span><span class="nf">find_unique_root</span><span class="p">(</span>
+<a id="__codelineno-0-1902" name="__codelineno-0-1902"></a>    <span class="n">expr</span><span class="p">:</span> <span class="n">Expr</span><span class="p">,</span>
+<a id="__codelineno-0-1903" name="__codelineno-0-1903"></a>    <span class="n">domain</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Interval</span><span class="p">,</span> <span class="n">Box</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">,</span> <span class="nb">dict</span><span class="p">],</span>
+<a id="__codelineno-0-1904" name="__codelineno-0-1904"></a>    <span class="n">config</span><span class="p">:</span> <span class="n">Config</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(),</span>
+<a id="__codelineno-0-1905" name="__codelineno-0-1905"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">UniqueRootResult</span><span class="p">:</span>
+<a id="__codelineno-0-1906" name="__codelineno-0-1906"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-1907" name="__codelineno-0-1907"></a><span class="sd">    Find a unique root using interval Newton method.</span>
+<a id="__codelineno-0-1908" name="__codelineno-0-1908"></a>
+<a id="__codelineno-0-1909" name="__codelineno-0-1909"></a><span class="sd">    Returns UniqueRootResult with:</span>
+<a id="__codelineno-0-1910" name="__codelineno-0-1910"></a><span class="sd">    - unique=True: A unique root is PROVEN to exist (Newton contracted)</span>
+<a id="__codelineno-0-1911" name="__codelineno-0-1911"></a><span class="sd">    - unique=False with reason=&#39;no_contraction&#39;: Couldn&#39;t prove uniqueness</span>
+<a id="__codelineno-0-1912" name="__codelineno-0-1912"></a><span class="sd">      (root may still exist, try a smaller interval)</span>
+<a id="__codelineno-0-1913" name="__codelineno-0-1913"></a><span class="sd">    - unique=False with reason=&#39;no_root&#39;: Provably no roots</span>
+<a id="__codelineno-0-1914" name="__codelineno-0-1914"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-1915" name="__codelineno-0-1915"></a>    <span class="k">return</span> <span class="n">_get_solver</span><span class="p">()</span><span class="o">.</span><span class="n">find_unique_root</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="leancert.solver.verify_bound" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">leancert</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">verify_bound</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">upper</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">lower</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">Config</span><span class="p">(),</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;adaptive&#39;</span><span class="p">)</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+
+        <p>Verify that an expression satisfies bounds with false positive filtering.</p>
+<p>This function uses global optimization with counterexample concretization
+to filter false positives caused by interval over-approximation.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>expr</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.expr.Expr" href="../expr/#leancert.expr.Expr">Expr</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Expression to verify.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>domain</code>
+            </td>
+            <td>
+                  <code><span title="typing.Union">Union</span>[<span title="leancert.domain.Interval">Interval</span>, <span title="leancert.domain.Box">Box</span>, <span title="tuple">tuple</span>, <span title="dict">dict</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Domain specification.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>upper</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Upper bound to verify (expr &lt;= upper).</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>lower</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Lower bound to verify (expr &gt;= lower).</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>config</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.config.Config
+
+
+  
+      dataclass
+  " href="../config/#leancert.config.Config">Config</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Solver configuration.</p>
+              </div>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="leancert.config.Config
+
+
+  
+      dataclass
+  " href="../config/#leancert.config.Config">Config</a>()</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>method</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>'adaptive' (default, uses optimization with false positive
+   filtering) or 'interval' (fast, conservative).</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;adaptive&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>True if verified.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="leancert.exceptions.VerificationFailed">VerificationFailed</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If bound verification fails AND is confirmed by
+               concrete evaluation (not a false positive).</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>python/leancert/solver.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1853">1853</a></span>
+<span class="normal"><a href="#__codelineno-0-1854">1854</a></span>
+<span class="normal"><a href="#__codelineno-0-1855">1855</a></span>
+<span class="normal"><a href="#__codelineno-0-1856">1856</a></span>
+<span class="normal"><a href="#__codelineno-0-1857">1857</a></span>
+<span class="normal"><a href="#__codelineno-0-1858">1858</a></span>
+<span class="normal"><a href="#__codelineno-0-1859">1859</a></span>
+<span class="normal"><a href="#__codelineno-0-1860">1860</a></span>
+<span class="normal"><a href="#__codelineno-0-1861">1861</a></span>
+<span class="normal"><a href="#__codelineno-0-1862">1862</a></span>
+<span class="normal"><a href="#__codelineno-0-1863">1863</a></span>
+<span class="normal"><a href="#__codelineno-0-1864">1864</a></span>
+<span class="normal"><a href="#__codelineno-0-1865">1865</a></span>
+<span class="normal"><a href="#__codelineno-0-1866">1866</a></span>
+<span class="normal"><a href="#__codelineno-0-1867">1867</a></span>
+<span class="normal"><a href="#__codelineno-0-1868">1868</a></span>
+<span class="normal"><a href="#__codelineno-0-1869">1869</a></span>
+<span class="normal"><a href="#__codelineno-0-1870">1870</a></span>
+<span class="normal"><a href="#__codelineno-0-1871">1871</a></span>
+<span class="normal"><a href="#__codelineno-0-1872">1872</a></span>
+<span class="normal"><a href="#__codelineno-0-1873">1873</a></span>
+<span class="normal"><a href="#__codelineno-0-1874">1874</a></span>
+<span class="normal"><a href="#__codelineno-0-1875">1875</a></span>
+<span class="normal"><a href="#__codelineno-0-1876">1876</a></span>
+<span class="normal"><a href="#__codelineno-0-1877">1877</a></span>
+<span class="normal"><a href="#__codelineno-0-1878">1878</a></span>
+<span class="normal"><a href="#__codelineno-0-1879">1879</a></span>
+<span class="normal"><a href="#__codelineno-0-1880">1880</a></span>
+<span class="normal"><a href="#__codelineno-0-1881">1881</a></span>
+<span class="normal"><a href="#__codelineno-0-1882">1882</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-1853" name="__codelineno-0-1853"></a><span class="k">def</span><span class="w"> </span><span class="nf">verify_bound</span><span class="p">(</span>
+<a id="__codelineno-0-1854" name="__codelineno-0-1854"></a>    <span class="n">expr</span><span class="p">:</span> <span class="n">Expr</span><span class="p">,</span>
+<a id="__codelineno-0-1855" name="__codelineno-0-1855"></a>    <span class="n">domain</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Interval</span><span class="p">,</span> <span class="n">Box</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">,</span> <span class="nb">dict</span><span class="p">],</span>
+<a id="__codelineno-0-1856" name="__codelineno-0-1856"></a>    <span class="n">upper</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-1857" name="__codelineno-0-1857"></a>    <span class="n">lower</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-1858" name="__codelineno-0-1858"></a>    <span class="n">config</span><span class="p">:</span> <span class="n">Config</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(),</span>
+<a id="__codelineno-0-1859" name="__codelineno-0-1859"></a>    <span class="n">method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;adaptive&#39;</span><span class="p">,</span>
+<a id="__codelineno-0-1860" name="__codelineno-0-1860"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<a id="__codelineno-0-1861" name="__codelineno-0-1861"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Verify that an expression satisfies bounds with false positive filtering.</span>
+<a id="__codelineno-0-1862" name="__codelineno-0-1862"></a>
+<a id="__codelineno-0-1863" name="__codelineno-0-1863"></a><span class="sd">    This function uses global optimization with counterexample concretization</span>
+<a id="__codelineno-0-1864" name="__codelineno-0-1864"></a><span class="sd">    to filter false positives caused by interval over-approximation.</span>
+<a id="__codelineno-0-1865" name="__codelineno-0-1865"></a>
+<a id="__codelineno-0-1866" name="__codelineno-0-1866"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-1867" name="__codelineno-0-1867"></a><span class="sd">        expr: Expression to verify.</span>
+<a id="__codelineno-0-1868" name="__codelineno-0-1868"></a><span class="sd">        domain: Domain specification.</span>
+<a id="__codelineno-0-1869" name="__codelineno-0-1869"></a><span class="sd">        upper: Upper bound to verify (expr &lt;= upper).</span>
+<a id="__codelineno-0-1870" name="__codelineno-0-1870"></a><span class="sd">        lower: Lower bound to verify (expr &gt;= lower).</span>
+<a id="__codelineno-0-1871" name="__codelineno-0-1871"></a><span class="sd">        config: Solver configuration.</span>
+<a id="__codelineno-0-1872" name="__codelineno-0-1872"></a><span class="sd">        method: &#39;adaptive&#39; (default, uses optimization with false positive</span>
+<a id="__codelineno-0-1873" name="__codelineno-0-1873"></a><span class="sd">               filtering) or &#39;interval&#39; (fast, conservative).</span>
+<a id="__codelineno-0-1874" name="__codelineno-0-1874"></a>
+<a id="__codelineno-0-1875" name="__codelineno-0-1875"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-1876" name="__codelineno-0-1876"></a><span class="sd">        True if verified.</span>
+<a id="__codelineno-0-1877" name="__codelineno-0-1877"></a>
+<a id="__codelineno-0-1878" name="__codelineno-0-1878"></a><span class="sd">    Raises:</span>
+<a id="__codelineno-0-1879" name="__codelineno-0-1879"></a><span class="sd">        VerificationFailed: If bound verification fails AND is confirmed by</span>
+<a id="__codelineno-0-1880" name="__codelineno-0-1880"></a><span class="sd">                           concrete evaluation (not a false positive).</span>
+<a id="__codelineno-0-1881" name="__codelineno-0-1881"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-1882" name="__codelineno-0-1882"></a>    <span class="k">return</span> <span class="n">_get_solver</span><span class="p">()</span><span class="o">.</span><span class="n">verify_bound</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">upper</span><span class="p">,</span> <span class="n">lower</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">method</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="leancert.solver.integrate" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">leancert</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">integrate</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">partitions</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">Config</span><span class="p">())</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+
+        <p>Compute rigorous integral bounds.</p>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>python/leancert/solver.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1918">1918</a></span>
+<span class="normal"><a href="#__codelineno-0-1919">1919</a></span>
+<span class="normal"><a href="#__codelineno-0-1920">1920</a></span>
+<span class="normal"><a href="#__codelineno-0-1921">1921</a></span>
+<span class="normal"><a href="#__codelineno-0-1922">1922</a></span>
+<span class="normal"><a href="#__codelineno-0-1923">1923</a></span>
+<span class="normal"><a href="#__codelineno-0-1924">1924</a></span>
+<span class="normal"><a href="#__codelineno-0-1925">1925</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-1918" name="__codelineno-0-1918"></a><span class="k">def</span><span class="w"> </span><span class="nf">integrate</span><span class="p">(</span>
+<a id="__codelineno-0-1919" name="__codelineno-0-1919"></a>    <span class="n">expr</span><span class="p">:</span> <span class="n">Expr</span><span class="p">,</span>
+<a id="__codelineno-0-1920" name="__codelineno-0-1920"></a>    <span class="n">domain</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Interval</span><span class="p">,</span> <span class="n">Box</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">,</span> <span class="nb">dict</span><span class="p">],</span>
+<a id="__codelineno-0-1921" name="__codelineno-0-1921"></a>    <span class="n">partitions</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
+<a id="__codelineno-0-1922" name="__codelineno-0-1922"></a>    <span class="n">config</span><span class="p">:</span> <span class="n">Config</span> <span class="o">=</span> <span class="n">Config</span><span class="p">(),</span>
+<a id="__codelineno-0-1923" name="__codelineno-0-1923"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">IntegralResult</span><span class="p">:</span>
+<a id="__codelineno-0-1924" name="__codelineno-0-1924"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Compute rigorous integral bounds.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-1925" name="__codelineno-0-1925"></a>    <span class="k">return</span> <span class="n">_get_solver</span><span class="p">()</span><span class="o">.</span><span class="n">integrate</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">partitions</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div><h2 id="witness-synthesis">Witness Synthesis</h2>
+<p>LeanCert can automatically synthesize witnesses for existential proof goals. This allows Lean to delegate witness construction to Python, which finds witnesses via optimization or root-finding and returns certificate-checked results.</p>
+<h3 id="supported-goal-forms">Supported Goal Forms</h3>
+<table>
+<thead>
+<tr>
+<th>Goal Form</th>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>∃ m, ∀ x ∈ I, f(x) ≥ m</code></td>
+<td><code>synthesize_min_witness</code></td>
+<td>Find global minimum witness</td>
+</tr>
+<tr>
+<td><code>∃ M, ∀ x ∈ I, f(x) ≤ M</code></td>
+<td><code>synthesize_max_witness</code></td>
+<td>Find global maximum witness</td>
+</tr>
+<tr>
+<td><code>∃ x ∈ I, f(x) = 0</code></td>
+<td><code>synthesize_root_witness</code></td>
+<td>Find root existence witness</td>
+</tr>
+</tbody>
+</table>
+<h3 id="example-minimum-witness">Example: Minimum Witness</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">leancert</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">lc</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">x</span> <span class="o">=</span> <span class="n">lc</span><span class="o">.</span><span class="n">var</span><span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">)</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">with</span> <span class="n">lc</span><span class="o">.</span><span class="n">Solver</span><span class="p">()</span> <span class="k">as</span> <span class="n">solver</span><span class="p">:</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="c1"># Synthesize witness for ∃ m, ∀ x ∈ [0,1], x² ≥ m</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">solver</span><span class="o">.</span><span class="n">synthesize_min_witness</span><span class="p">(</span><span class="n">x</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;x&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)})</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">witness_value</span><span class="p">)</span>   <span class="c1"># ~0 (the minimum)</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">witness_point</span><span class="p">)</span>   <span class="c1"># WitnessPoint(x=0.0, f=0.0)</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">to_lean_tactic</span><span class="p">())</span>  <span class="c1"># Lean proof code</span>
+</code></pre></div>
+<h3 id="example-root-witness">Example: Root Witness</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">leancert</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">lc</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">x</span> <span class="o">=</span> <span class="n">lc</span><span class="o">.</span><span class="n">var</span><span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">)</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="k">with</span> <span class="n">lc</span><span class="o">.</span><span class="n">Solver</span><span class="p">()</span> <span class="k">as</span> <span class="n">solver</span><span class="p">:</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="c1"># Synthesize witness for ∃ x ∈ [0.5, 1.5], x² - 1 = 0</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">solver</span><span class="o">.</span><span class="n">synthesize_root_witness</span><span class="p">(</span><span class="n">x</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;x&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">)})</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">witness_point</span><span class="p">)</span>   <span class="c1"># WitnessPoint(x≈1.0, f≈0.0)</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">proof_method</span><span class="p">)</span>    <span class="c1"># &#39;newton_contraction&#39; or &#39;sign_change&#39;</span>
+</code></pre></div>
+<h3 id="proof-strategy-racing">Proof Strategy Racing</h3>
+<p>For unknown expressions, race multiple backends in parallel:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">config</span> <span class="o">=</span> <span class="n">lc</span><span class="o">.</span><span class="n">Config</span><span class="p">(</span><span class="n">race_strategies</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">timeout_ms</span><span class="o">=</span><span class="mi">5000</span><span class="p">)</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">result</span> <span class="o">=</span> <span class="n">solver</span><span class="o">.</span><span class="n">synthesize_min_witness</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">strategy_used</span><span class="p">)</span>  <span class="c1"># &#39;dyadic&#39;, &#39;affine&#39;, or &#39;rational&#39;</span>
+</code></pre></div>
+<h3 id="incremental-refinement">Incremental Refinement</h3>
+<p>Find the tightest provable bound:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">config</span> <span class="o">=</span> <span class="n">lc</span><span class="o">.</span><span class="n">Config</span><span class="p">(</span><span class="n">incremental_refinement</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">result</span> <span class="o">=</span> <span class="n">solver</span><span class="o">.</span><span class="n">synthesize_max_witness</span><span class="p">(</span><span class="n">lc</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="p">{</span><span class="s1">&#39;x&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)},</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">refinement_history</span><span class="p">)</span>  <span class="c1"># [{bound: 2.8, status: &#39;verified&#39;}, ...]</span>
+</code></pre></div>
+<h2 id="lipschitz-bounds">Lipschitz Bounds</h2>
+<p>LeanCert can compute verified Lipschitz constants for expressions by bounding derivatives via interval arithmetic.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">leancert</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">lc</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">x</span> <span class="o">=</span> <span class="n">lc</span><span class="o">.</span><span class="n">var</span><span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">)</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="k">with</span> <span class="n">lc</span><span class="o">.</span><span class="n">Solver</span><span class="p">()</span> <span class="k">as</span> <span class="n">solver</span><span class="p">:</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">solver</span><span class="o">.</span><span class="n">compute_lipschitz_bound</span><span class="p">(</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>        <span class="n">lc</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">x</span><span class="p">),</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>        <span class="p">{</span><span class="s1">&#39;x&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mf">3.14159</span><span class="p">)}</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="p">)</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">lipschitz_bound</span><span class="p">)</span>   <span class="c1"># Fraction(1, 1) = 1.0</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">gradient_bounds</span><span class="p">)</span>   <span class="c1"># {&#39;x&#39;: Interval(-1, 1)}</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>    <span class="c1"># Use for ε-δ continuity: δ = ε/L</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>    <span class="n">delta</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">delta_for_epsilon</span><span class="p">(</span><span class="mf">0.01</span><span class="p">)</span>  <span class="c1"># 0.01</span>
+</code></pre></div>
+<p>See <a href="../lipschitz/">Lipschitz Bounds</a> for detailed documentation.</p>
+<h2 id="failure-diagnosis-cegpr">Failure Diagnosis (CEGPR)</h2>
+<p>The <code>diagnose_bound_failure</code> method supports Counterexample-Guided Proof Refinement by analyzing why a bound verification would fail:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">x</span> <span class="o">=</span> <span class="n">lc</span><span class="o">.</span><span class="n">var</span><span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">)</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">with</span> <span class="n">lc</span><span class="o">.</span><span class="n">Solver</span><span class="p">()</span> <span class="k">as</span> <span class="n">solver</span><span class="p">:</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="c1"># Try to prove exp(x) ≤ 2.5 on [0,1] - this fails!</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">diagnosis</span> <span class="o">=</span> <span class="n">solver</span><span class="o">.</span><span class="n">diagnose_bound_failure</span><span class="p">(</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>        <span class="n">lc</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="p">{</span><span class="s1">&#39;x&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)},</span> <span class="n">upper</span><span class="o">=</span><span class="mf">2.5</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="p">)</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="k">if</span> <span class="n">diagnosis</span><span class="p">:</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>        <span class="nb">print</span><span class="p">(</span><span class="n">diagnosis</span><span class="o">.</span><span class="n">failure_type</span><span class="p">)</span>    <span class="c1"># &#39;bound_too_tight&#39;</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>        <span class="nb">print</span><span class="p">(</span><span class="n">diagnosis</span><span class="o">.</span><span class="n">margin</span><span class="p">)</span>          <span class="c1"># -0.218... (negative = violated)</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>        <span class="nb">print</span><span class="p">(</span><span class="n">diagnosis</span><span class="o">.</span><span class="n">worst_point</span><span class="p">)</span>     <span class="c1"># {&#39;x&#39;: 0.999...}</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>        <span class="nb">print</span><span class="p">(</span><span class="n">diagnosis</span><span class="o">.</span><span class="n">suggested_bound</span><span class="p">)</span> <span class="c1"># 2.746... (would succeed)</span>
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "navigation.path", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
