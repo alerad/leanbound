@@ -1,5 +1,8 @@
 # LeanCert
 
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Documentation](https://img.shields.io/badge/docs-leancert.io-brightgreen.svg)](https://docs.leancert.io)
+
 **Numerical computation produces suggestions. LeanCert produces theorems.**
 
 LeanCert transforms numerical insights into formal certificates—proof terms verified by the Lean kernel. Write `by certify_bound` and get a real theorem: `∀ x ∈ I, f(x) ≤ c`, not just a floating-point approximation.
