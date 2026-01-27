@@ -104,6 +104,107 @@ def popBest (queue : List (ℚ × Box)) : Option ((ℚ × Box) × List (ℚ × B
   | [] => none
   | best :: rest => some (best, rest)
 
+/-! ### Generic Branch-and-Bound Algorithm
+
+The following generic functions implement the core branch-and-bound algorithm
+parameterized by an evaluator function. This allows different interval arithmetic
+backends (Rational, Dyadic, Affine) to share the same optimization logic.
+-/
+
+/-- Generic one step of branch-and-bound for minimization.
+    Takes an evaluator function `eval : Box → IntervalRat` that computes interval bounds.
+    The evaluator encapsulates the expression, configuration, and interval arithmetic backend.
+
+    When `useMonotonicity` is true, applies gradient-based pruning using `gradientIntervalCore`.
+    The gradient computation always uses rational arithmetic for simplicity.
+
+    Parameters:
+    - `eval`: Evaluator function mapping boxes to interval bounds
+    - `gradEval`: Optional gradient evaluator for monotonicity pruning
+    - `useMonotonicity`: Whether to apply gradient-based box pruning
+    - `tolerance`: Stop splitting when box width is below this threshold
+    - `queue`: Priority queue of (lower_bound, box) pairs
+    - `bestLB`: Current best global lower bound
+    - `bestUB`: Current best upper bound (achievable)
+    - `bestBox`: Box containing the best found point -/
+def minimizeStepGeneric
+    (eval : Box → IntervalRat)
+    (gradEval : Box → List IntervalRat)
+    (useMonotonicity : Bool)
+    (tolerance : ℚ)
+    (queue : List (ℚ × Box)) (bestLB bestUB : ℚ) (bestBox : Box) :
+    Option (List (ℚ × Box) × ℚ × ℚ × Box) :=
+  match popBest queue with
+  | none => none
+  | some ((lb, B), rest) =>
+    if lb > bestUB then
+      -- Prune this box; bounds unchanged
+      some (rest, bestLB, bestUB, bestBox)
+    else
+      -- Step 1: Optionally apply monotonicity-based pruning
+      let B_curr :=
+        if useMonotonicity then
+          let grad := gradEval B
+          (pruneBoxForMin B grad).1
+        else B
+      -- Step 2: Evaluate on (potentially pruned) box
+      let I := eval B_curr
+      -- Update global lower bound: min of old and this box's local lower bound
+      let newBestLB := min bestLB I.lo
+      -- Possibly improve upper bound
+      let (newBestUB, newBestBox) :=
+        if I.hi < bestUB then (I.hi, B_curr) else (bestUB, bestBox)
+      if Box.maxWidth B_curr ≤ tolerance then
+        -- Box is small enough: don't split further
+        some (rest, newBestLB, newBestUB, newBestBox)
+      else
+        -- Step 3: Split and add children
+        let (B1, B2) := Box.splitWidest B_curr
+        let I1 := eval B1
+        let I2 := eval B2
+        -- Insert children if they might improve the minimum
+        let queue' := rest
+        let queue' := if I1.lo ≤ newBestUB then insertByBound queue' I1.lo B1 else queue'
+        let queue' := if I2.lo ≤ newBestUB then insertByBound queue' I2.lo B2 else queue'
+        some (queue', newBestLB, newBestUB, newBestBox)
+
+/-- Generic branch-and-bound loop for minimization.
+    Iteratively calls `minimizeStepGeneric` until either:
+    - The queue is empty (optimal found)
+    - Maximum iterations reached
+
+    Parameters:
+    - `eval`: Evaluator function mapping boxes to interval bounds
+    - `gradEval`: Gradient evaluator for monotonicity pruning
+    - `useMonotonicity`: Whether to apply gradient-based pruning
+    - `tolerance`: Stop splitting when box width is below this threshold
+    - `maxIterations`: Maximum iterations for the result's iteration count
+    - `queue`, `bestLB`, `bestUB`, `bestBox`: Current state
+    - `iters`: Remaining iterations -/
+def minimizeLoopGeneric
+    (eval : Box → IntervalRat)
+    (gradEval : Box → List IntervalRat)
+    (useMonotonicity : Bool)
+    (tolerance : ℚ)
+    (maxIterations : Nat)
+    (queue : List (ℚ × Box)) (bestLB bestUB : ℚ) (bestBox : Box) (iters : Nat) :
+    GlobalResult :=
+  match iters with
+  | 0 =>
+    { bound := { lo := bestLB, hi := bestUB, bestBox := bestBox, iterations := maxIterations }
+      remainingBoxes := queue }
+  | n + 1 =>
+    match minimizeStepGeneric eval gradEval useMonotonicity tolerance queue bestLB bestUB bestBox with
+    | none =>
+      { bound := { lo := bestLB, hi := bestUB, bestBox := bestBox, iterations := maxIterations - n - 1 }
+        remainingBoxes := [] }
+    | some (queue', bestLB', bestUB', bestBox') =>
+      minimizeLoopGeneric eval gradEval useMonotonicity tolerance maxIterations queue' bestLB' bestUB' bestBox' n
+
+/-- Helper: create gradient evaluator from expression and config -/
+def mkGradEval (e : Expr) (taylorDepth : Nat) : Box → List IntervalRat :=
+  fun B => gradientIntervalCore e B { taylorDepth := taylorDepth }
+
 /-! ### Core algorithm -/
 
 /-- Evaluate expression on a box and get interval bounds -/
@@ -199,45 +300,20 @@ def evalOnBoxCoreDiv (e : Expr) (B : Box) (cfg : GlobalOptConfig) : IntervalRat 
   evalIntervalCoreWithDiv e (Box.toEnv B) { taylorDepth := cfg.taylorDepth }
 
 /-- One step of branch-and-bound (computable version) with explicit bestLB tracking.
-    When `cfg.useMonotonicity` is true, applies gradient-based pruning before evaluation. -/
+    When `cfg.useMonotonicity` is true, applies gradient-based pruning before evaluation.
+    This is a thin wrapper around the generic `minimizeStepGeneric`. -/
 def minimizeStepCore (e : Expr) (cfg : GlobalOptConfig)
     (queue : List (ℚ × Box)) (bestLB bestUB : ℚ) (bestBox : Box) :
     Option (List (ℚ × Box) × ℚ × ℚ × Box) :=
-  match popBest queue with
-  | none => none
-  | some ((lb, B), rest) =>
-    if lb > bestUB then
-      -- Prune this box; bounds unchanged
-      some (rest, bestLB, bestUB, bestBox)
-    else
-      -- Step 1: Optionally apply monotonicity-based pruning
-      let B_curr :=
-        if cfg.useMonotonicity then
-          let grad := gradientIntervalCore e B { taylorDepth := cfg.taylorDepth }
-          (pruneBoxForMin B grad).1
-        else B
-      -- Step 2: Evaluate on (potentially pruned) box
-      let I := evalOnBoxCore e B_curr cfg
-      -- Update global lower bound: min of old and this box's local lower bound
-      let newBestLB := min bestLB I.lo
-      -- Possibly improve upper bound
-      let (newBestUB, newBestBox) :=
-        if I.hi < bestUB then (I.hi, B_curr) else (bestUB, bestBox)
-      if Box.maxWidth B_curr ≤ cfg.tolerance then
-        -- Box is small enough: don't split further
-        some (rest, newBestLB, newBestUB, newBestBox)
-      else
-        -- Step 3: Split and add children
-        let (B1, B2) := Box.splitWidest B_curr
-        let I1 := evalOnBoxCore e B1 cfg
-        let I2 := evalOnBoxCore e B2 cfg
-        -- Insert children if they might improve the minimum
-        let queue' := rest
-        let queue' := if I1.lo ≤ newBestUB then insertByBound queue' I1.lo B1 else queue'
-        let queue' := if I2.lo ≤ newBestUB then insertByBound queue' I2.lo B2 else queue'
-        some (queue', newBestLB, newBestUB, newBestBox)
+  minimizeStepGeneric
+    (fun B => evalOnBoxCore e B cfg)
+    (mkGradEval e cfg.taylorDepth)
+    cfg.useMonotonicity
+    cfg.tolerance
+    queue bestLB bestUB bestBox
 
-/-- Run branch-and-bound (computable version) with explicit bestLB tracking -/
+/-- Run branch-and-bound (computable version) with explicit bestLB tracking.
+    This is a thin wrapper around the generic `minimizeLoopGeneric`. -/
 def minimizeLoopCore (e : Expr) (cfg : GlobalOptConfig)
     (queue : List (ℚ × Box)) (bestLB bestUB : ℚ) (bestBox : Box) (iters : Nat) :
     GlobalResult :=
@@ -280,31 +356,12 @@ They have the same structure as the standard versions but support expressions wi
 def minimizeStepCoreDiv (e : Expr) (cfg : GlobalOptConfig)
     (queue : List (ℚ × Box)) (bestLB bestUB : ℚ) (bestBox : Box) :
     Option (List (ℚ × Box) × ℚ × ℚ × Box) :=
-  match popBest queue with
-  | none => none
-  | some ((lb, B), rest) =>
-    if lb > bestUB then
-      some (rest, bestLB, bestUB, bestBox)
-    else
-      let B_curr :=
-        if cfg.useMonotonicity then
-          let grad := gradientIntervalCore e B { taylorDepth := cfg.taylorDepth }
-          (pruneBoxForMin B grad).1
-        else B
-      let I := evalOnBoxCoreDiv e B_curr cfg
-      let newBestLB := min bestLB I.lo
-      let (newBestUB, newBestBox) :=
-        if I.hi < bestUB then (I.hi, B_curr) else (bestUB, bestBox)
-      if Box.maxWidth B_curr ≤ cfg.tolerance then
-        some (rest, newBestLB, newBestUB, newBestBox)
-      else
-        let (B1, B2) := Box.splitWidest B_curr
-        let I1 := evalOnBoxCoreDiv e B1 cfg
-        let I2 := evalOnBoxCoreDiv e B2 cfg
-        let queue' := rest
-        let queue' := if I1.lo ≤ newBestUB then insertByBound queue' I1.lo B1 else queue'
-        let queue' := if I2.lo ≤ newBestUB then insertByBound queue' I2.lo B2 else queue'
-        some (queue', newBestLB, newBestUB, newBestBox)
+  minimizeStepGeneric
+    (fun B => evalOnBoxCoreDiv e B cfg)
+    (mkGradEval e cfg.taylorDepth)
+    cfg.useMonotonicity
+    cfg.tolerance
+    queue bestLB bestUB bestBox
 
 /-- Run branch-and-bound loop with division support -/
 def minimizeLoopCoreDiv (e : Expr) (cfg : GlobalOptConfig)
@@ -917,9 +974,9 @@ theorem minimizeStepCore_preserves_LB (e : Expr) (hsupp : ExprSupportedCore e) (
     (∀ lb B', (lb, B') ∈ queue' →
         ∀ ρ, Box.envMem ρ B' → Box.envMem ρ origB ∧ B'.length = origB.length) := by
   cases hq : queue with
-  | nil => simp [minimizeStepCore, popBest, hq] at hStep
+  | nil => simp [minimizeStepCore, minimizeStepGeneric, popBest, hq] at hStep
   | cons hd tl =>
-    simp only [hq, minimizeStepCore, popBest] at hStep
+    simp only [hq, minimizeStepCore, minimizeStepGeneric, mkGradEval, popBest] at hStep
     by_cases h_prune : hd.1 > bestUB
     · -- Prune case: bounds unchanged
       simp only [h_prune, ↓reduceIte] at hStep
@@ -1265,31 +1322,12 @@ def evalOnBoxDyadic (e : Expr) (B : Box) (cfg : GlobalOptConfigDyadic) : Interva
 def minimizeStepDyadic (e : Expr) (cfg : GlobalOptConfigDyadic)
     (queue : List (ℚ × Box)) (bestLB bestUB : ℚ) (bestBox : Box) :
     Option (List (ℚ × Box) × ℚ × ℚ × Box) :=
-  match popBest queue with
-  | none => none
-  | some ((lb, B), rest) =>
-    if lb > bestUB then
-      some (rest, bestLB, bestUB, bestBox)
-    else
-      let B_curr :=
-        if cfg.useMonotonicity then
-          let grad := gradientIntervalCore e B { taylorDepth := cfg.taylorDepth }
-          (pruneBoxForMin B grad).1
-        else B
-      let I := evalOnBoxDyadic e B_curr cfg
-      let newBestLB := min bestLB I.lo
-      let (newBestUB, newBestBox) :=
-        if I.hi < bestUB then (I.hi, B_curr) else (bestUB, bestBox)
-      if Box.maxWidth B_curr ≤ cfg.tolerance then
-        some (rest, newBestLB, newBestUB, newBestBox)
-      else
-        let (B1, B2) := Box.splitWidest B_curr
-        let I1 := evalOnBoxDyadic e B1 cfg
-        let I2 := evalOnBoxDyadic e B2 cfg
-        let queue' := rest
-        let queue' := if I1.lo ≤ newBestUB then insertByBound queue' I1.lo B1 else queue'
-        let queue' := if I2.lo ≤ newBestUB then insertByBound queue' I2.lo B2 else queue'
-        some (queue', newBestLB, newBestUB, newBestBox)
+  minimizeStepGeneric
+    (fun B => evalOnBoxDyadic e B cfg)
+    (mkGradEval e cfg.taylorDepth)
+    cfg.useMonotonicity
+    cfg.tolerance
+    queue bestLB bestUB bestBox
 
 /-- Run branch-and-bound loop using Dyadic arithmetic -/
 def minimizeLoopDyadic (e : Expr) (cfg : GlobalOptConfigDyadic)
@@ -1315,9 +1353,9 @@ theorem minimizeStepDyadic_bestLB_le (e : Expr) (cfg : GlobalOptConfigDyadic)
       some (queue', bestLB', bestUB', bestBox')) :
     bestLB' ≤ bestLB := by
   cases queue with
-  | nil => simp [minimizeStepDyadic, popBest] at hStep
+  | nil => simp [minimizeStepDyadic, minimizeStepGeneric, popBest] at hStep
   | cons hd tl =>
-    simp only [minimizeStepDyadic, popBest] at hStep
+    simp only [minimizeStepDyadic, minimizeStepGeneric, popBest] at hStep
     split_ifs at hStep <;> simp only [Option.some.injEq, Prod.mk.injEq] at hStep
     all_goals rcases hStep with ⟨_, hLB, _, _⟩
     all_goals rw [← hLB]
@@ -1394,31 +1432,12 @@ def evalOnBoxAffine (e : Expr) (B : Box) (cfg : GlobalOptConfigAffine) : Interva
 def minimizeStepAffine (e : Expr) (cfg : GlobalOptConfigAffine)
     (queue : List (ℚ × Box)) (bestLB bestUB : ℚ) (bestBox : Box) :
     Option (List (ℚ × Box) × ℚ × ℚ × Box) :=
-  match popBest queue with
-  | none => none
-  | some ((lb, B), rest) =>
-    if lb > bestUB then
-      some (rest, bestLB, bestUB, bestBox)
-    else
-      let B_curr :=
-        if cfg.useMonotonicity then
-          let grad := gradientIntervalCore e B { taylorDepth := cfg.taylorDepth }
-          (pruneBoxForMin B grad).1
-        else B
-      let I := evalOnBoxAffine e B_curr cfg
-      let newBestLB := min bestLB I.lo
-      let (newBestUB, newBestBox) :=
-        if I.hi < bestUB then (I.hi, B_curr) else (bestUB, bestBox)
-      if Box.maxWidth B_curr ≤ cfg.tolerance then
-        some (rest, newBestLB, newBestUB, newBestBox)
-      else
-        let (B1, B2) := Box.splitWidest B_curr
-        let I1 := evalOnBoxAffine e B1 cfg
-        let I2 := evalOnBoxAffine e B2 cfg
-        let queue' := rest
-        let queue' := if I1.lo ≤ newBestUB then insertByBound queue' I1.lo B1 else queue'
-        let queue' := if I2.lo ≤ newBestUB then insertByBound queue' I2.lo B2 else queue'
-        some (queue', newBestLB, newBestUB, newBestBox)
+  minimizeStepGeneric
+    (fun B => evalOnBoxAffine e B cfg)
+    (mkGradEval e cfg.taylorDepth)
+    cfg.useMonotonicity
+    cfg.tolerance
+    queue bestLB bestUB bestBox
 
 /-- Run branch-and-bound loop using Affine arithmetic -/
 def minimizeLoopAffine (e : Expr) (cfg : GlobalOptConfigAffine)
@@ -1444,9 +1463,9 @@ theorem minimizeStepAffine_bestLB_le (e : Expr) (cfg : GlobalOptConfigAffine)
       some (queue', bestLB', bestUB', bestBox')) :
     bestLB' ≤ bestLB := by
   cases queue with
-  | nil => simp [minimizeStepAffine, popBest] at hStep
+  | nil => simp [minimizeStepAffine, minimizeStepGeneric, popBest] at hStep
   | cons hd tl =>
-    simp only [minimizeStepAffine, popBest] at hStep
+    simp only [minimizeStepAffine, minimizeStepGeneric, popBest] at hStep
     split_ifs at hStep <;> simp only [Option.some.injEq, Prod.mk.injEq] at hStep
     all_goals rcases hStep with ⟨_, hLB, _, _⟩
     all_goals rw [← hLB]

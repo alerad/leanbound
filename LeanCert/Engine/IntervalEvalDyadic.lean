@@ -87,59 +87,61 @@ def toDyadicEnv (ρ : IntervalEnv) (prec : Int := -53) : IntervalDyadicEnv :=
 
 /-! ### Transcendental Function Wrappers -/
 
-/-- Compute sin interval using rational Taylor series, convert to Dyadic -/
-def sinIntervalDyadic (I : IntervalDyadic) (cfg : DyadicConfig) : IntervalDyadic :=
+/-- Generic wrapper: lift a rational interval function to Dyadic.
+    Converts input to Rat, applies the function with Taylor depth, converts back. -/
+def liftTranscendental (f_rat : IntervalRat → Nat → IntervalRat)
+    (I : IntervalDyadic) (cfg : DyadicConfig) : IntervalDyadic :=
   let Irat := I.toIntervalRat
-  let result := IntervalRat.sinComputable Irat cfg.taylorDepth
+  let result := f_rat Irat cfg.taylorDepth
   IntervalDyadic.ofIntervalRat result cfg.precision
+
+/-- Compute sin interval using rational Taylor series, convert to Dyadic -/
+def sinIntervalDyadic : IntervalDyadic → DyadicConfig → IntervalDyadic :=
+  liftTranscendental (fun I n => IntervalRat.sinComputable I n)
 
 /-- Compute cos interval using rational Taylor series, convert to Dyadic -/
-def cosIntervalDyadic (I : IntervalDyadic) (cfg : DyadicConfig) : IntervalDyadic :=
-  let Irat := I.toIntervalRat
-  let result := IntervalRat.cosComputable Irat cfg.taylorDepth
-  IntervalDyadic.ofIntervalRat result cfg.precision
+def cosIntervalDyadic : IntervalDyadic → DyadicConfig → IntervalDyadic :=
+  liftTranscendental (fun I n => IntervalRat.cosComputable I n)
 
 /-- Compute exp interval using rational Taylor series, convert to Dyadic -/
-def expIntervalDyadic (I : IntervalDyadic) (cfg : DyadicConfig) : IntervalDyadic :=
-  let Irat := I.toIntervalRat
-  let result := IntervalRat.expComputable Irat cfg.taylorDepth
-  IntervalDyadic.ofIntervalRat result cfg.precision
+def expIntervalDyadic : IntervalDyadic → DyadicConfig → IntervalDyadic :=
+  liftTranscendental (fun I n => IntervalRat.expComputable I n)
 
 /-- Compute sinh interval using rational Taylor series, convert to Dyadic -/
-def sinhIntervalDyadic (I : IntervalDyadic) (cfg : DyadicConfig) : IntervalDyadic :=
-  let Irat := I.toIntervalRat
-  let result := IntervalRat.sinhComputable Irat cfg.taylorDepth
-  IntervalDyadic.ofIntervalRat result cfg.precision
+def sinhIntervalDyadic : IntervalDyadic → DyadicConfig → IntervalDyadic :=
+  liftTranscendental (fun I n => IntervalRat.sinhComputable I n)
 
 /-- Compute cosh interval using rational Taylor series, convert to Dyadic -/
-def coshIntervalDyadic (I : IntervalDyadic) (cfg : DyadicConfig) : IntervalDyadic :=
-  let Irat := I.toIntervalRat
-  let result := IntervalRat.coshComputable Irat cfg.taylorDepth
-  IntervalDyadic.ofIntervalRat result cfg.precision
+def coshIntervalDyadic : IntervalDyadic → DyadicConfig → IntervalDyadic :=
+  liftTranscendental (fun I n => IntervalRat.coshComputable I n)
+
+/-- Create a constant bounded Dyadic interval from integer bounds.
+    Used for functions with known global bounds (tanh ∈ [-1,1], erf ∈ [-1,1], etc.) -/
+def boundedIntervalDyadic (lo hi : Int) (h : lo ≤ hi := by omega) : IntervalDyadic :=
+  ⟨Core.Dyadic.ofInt lo, Core.Dyadic.ofInt hi,
+   by rw [Dyadic.toRat_ofInt, Dyadic.toRat_ofInt]; exact Int.cast_le.mpr h⟩
+
+/-- Global bound [-1, 1] as Dyadic interval -/
+def intervalDyadic_neg1_1 : IntervalDyadic := boundedIntervalDyadic (-1) 1
+
+/-- Global bound [-2, 2] as Dyadic interval -/
+def intervalDyadic_neg2_2 : IntervalDyadic := boundedIntervalDyadic (-2) 2
 
 /-- atan interval: global bound [-2, 2] -/
 def atanIntervalDyadic (_I : IntervalDyadic) (_cfg : DyadicConfig) : IntervalDyadic :=
-  let neg2 := Core.Dyadic.ofInt (-2)
-  let pos2 := Core.Dyadic.ofInt 2
-  ⟨neg2, pos2, by rw [Dyadic.toRat_ofInt, Dyadic.toRat_ofInt]; norm_num⟩
+  intervalDyadic_neg2_2
 
 /-- tanh interval: global bound [-1, 1] -/
 def tanhIntervalDyadic (_I : IntervalDyadic) (_cfg : DyadicConfig) : IntervalDyadic :=
-  let neg1 := Core.Dyadic.ofInt (-1)
-  let pos1 := Core.Dyadic.ofInt 1
-  ⟨neg1, pos1, by rw [Dyadic.toRat_ofInt, Dyadic.toRat_ofInt]; norm_num⟩
+  intervalDyadic_neg1_1
 
 /-- sinc interval: global bound [-1, 1] -/
 def sincIntervalDyadic (_I : IntervalDyadic) (_cfg : DyadicConfig) : IntervalDyadic :=
-  let neg1 := Core.Dyadic.ofInt (-1)
-  let pos1 := Core.Dyadic.ofInt 1
-  ⟨neg1, pos1, by rw [Dyadic.toRat_ofInt, Dyadic.toRat_ofInt]; norm_num⟩
+  intervalDyadic_neg1_1
 
 /-- erf interval: global bound [-1, 1] -/
 def erfIntervalDyadic (_I : IntervalDyadic) (_cfg : DyadicConfig) : IntervalDyadic :=
-  let neg1 := Core.Dyadic.ofInt (-1)
-  let pos1 := Core.Dyadic.ofInt 1
-  ⟨neg1, pos1, by rw [Dyadic.toRat_ofInt, Dyadic.toRat_ofInt]; norm_num⟩
+  intervalDyadic_neg1_1
 
 /-- Compute inv interval: convert to Rat, use invInterval, convert back to Dyadic -/
 def invIntervalDyadic (I : IntervalDyadic) (cfg : DyadicConfig) : IntervalDyadic :=
@@ -219,30 +221,13 @@ def envMemDyadic (ρ_real : Nat → ℝ) (ρ_dyad : IntervalDyadicEnv) : Prop :=
   ∀ i, ρ_real i ∈ ρ_dyad i
 
 /-- Domain validity for Dyadic evaluation.
-    This is defined directly in terms of evalIntervalDyadic to ensure compatibility.
+    This uses the parametric domain validity with Dyadic-specific interval extraction.
     For log, we require the argument interval (converted to Rat) to have positive lower bound. -/
 def evalDomainValidDyadic (e : Expr) (ρ : IntervalDyadicEnv) (cfg : DyadicConfig := {}) : Prop :=
-  match e with
-  | Expr.const _ => True
-  | Expr.var _ => True
-  | Expr.add e₁ e₂ => evalDomainValidDyadic e₁ ρ cfg ∧ evalDomainValidDyadic e₂ ρ cfg
-  | Expr.mul e₁ e₂ => evalDomainValidDyadic e₁ ρ cfg ∧ evalDomainValidDyadic e₂ ρ cfg
-  | Expr.neg e => evalDomainValidDyadic e ρ cfg
-  | Expr.inv e => evalDomainValidDyadic e ρ cfg
-  | Expr.exp e => evalDomainValidDyadic e ρ cfg
-  | Expr.sin e => evalDomainValidDyadic e ρ cfg
-  | Expr.cos e => evalDomainValidDyadic e ρ cfg
-  | Expr.log e => evalDomainValidDyadic e ρ cfg ∧ (evalIntervalDyadic e ρ cfg).toIntervalRat.lo > 0
-  | Expr.atan e => evalDomainValidDyadic e ρ cfg
-  | Expr.arsinh e => evalDomainValidDyadic e ρ cfg
-  | Expr.atanh e => evalDomainValidDyadic e ρ cfg
-  | Expr.sinc e => evalDomainValidDyadic e ρ cfg
-  | Expr.erf e => evalDomainValidDyadic e ρ cfg
-  | Expr.sinh e => evalDomainValidDyadic e ρ cfg
-  | Expr.cosh e => evalDomainValidDyadic e ρ cfg
-  | Expr.tanh e => evalDomainValidDyadic e ρ cfg
-  | Expr.sqrt e => evalDomainValidDyadic e ρ cfg
-  | Expr.pi => True
+  evalDomainValidParametric
+    (fun e' ρ' cfg' => evalIntervalDyadic e' ρ' cfg')
+    (fun I => I.toIntervalRat.lo)
+    e ρ cfg
 
 /-- Domain validity is trivially true for ExprSupported expressions (which exclude log). -/
 theorem evalDomainValidDyadic_of_ExprSupported {e : Expr} (hsupp : ExprSupported e)
@@ -256,6 +241,66 @@ theorem evalDomainValidDyadic_of_ExprSupported {e : Expr} (hsupp : ExprSupported
   | sin _ ih => exact ih
   | cos _ ih => exact ih
   | exp _ ih => exact ih
+
+/-- Generic correctness lemma for liftTranscendental.
+    If f_rat is correct (i.e., real value ∈ rational interval), then the lifted
+    Dyadic function is also correct.
+    h_correct should have signature: x ∈ J → ∀ n, f_real x ∈ f_rat J n -/
+theorem mem_liftTranscendental {f_rat : IntervalRat → Nat → IntervalRat} {f_real : ℝ → ℝ}
+    {I : IntervalDyadic} {x : ℝ} (hx : x ∈ I) (cfg : DyadicConfig)
+    (hprec : cfg.precision ≤ 0)
+    (h_correct : ∀ {y : ℝ} {J : IntervalRat}, y ∈ J → ∀ (n : Nat), f_real y ∈ f_rat J n) :
+    f_real x ∈ liftTranscendental f_rat I cfg := by
+  simp only [liftTranscendental]
+  have hrat := IntervalDyadic.mem_toIntervalRat.mp hx
+  have hf := h_correct hrat cfg.taylorDepth
+  exact IntervalDyadic.mem_ofIntervalRat hf cfg.precision hprec
+
+/-- Convenience lemmas for specific transcendental functions -/
+theorem mem_sinIntervalDyadic {I : IntervalDyadic} {x : ℝ} (hx : x ∈ I) (cfg : DyadicConfig)
+    (hprec : cfg.precision ≤ 0) : Real.sin x ∈ sinIntervalDyadic I cfg :=
+  mem_liftTranscendental hx cfg hprec @IntervalRat.mem_sinComputable
+
+theorem mem_cosIntervalDyadic {I : IntervalDyadic} {x : ℝ} (hx : x ∈ I) (cfg : DyadicConfig)
+    (hprec : cfg.precision ≤ 0) : Real.cos x ∈ cosIntervalDyadic I cfg :=
+  mem_liftTranscendental hx cfg hprec @IntervalRat.mem_cosComputable
+
+theorem mem_expIntervalDyadic {I : IntervalDyadic} {x : ℝ} (hx : x ∈ I) (cfg : DyadicConfig)
+    (hprec : cfg.precision ≤ 0) : Real.exp x ∈ expIntervalDyadic I cfg :=
+  mem_liftTranscendental hx cfg hprec @IntervalRat.mem_expComputable
+
+theorem mem_sinhIntervalDyadic {I : IntervalDyadic} {x : ℝ} (hx : x ∈ I) (cfg : DyadicConfig)
+    (hprec : cfg.precision ≤ 0) : Real.sinh x ∈ sinhIntervalDyadic I cfg :=
+  mem_liftTranscendental hx cfg hprec @IntervalRat.mem_sinhComputable
+
+theorem mem_coshIntervalDyadic {I : IntervalDyadic} {x : ℝ} (hx : x ∈ I) (cfg : DyadicConfig)
+    (hprec : cfg.precision ≤ 0) : Real.cosh x ∈ coshIntervalDyadic I cfg :=
+  mem_liftTranscendental hx cfg hprec @IntervalRat.mem_coshComputable
+
+/-- Membership in bounded interval [-1, 1] -/
+theorem mem_intervalDyadic_neg1_1 {x : ℝ} (hlo : -1 ≤ x) (hhi : x ≤ 1) :
+    x ∈ intervalDyadic_neg1_1 := by
+  simp only [intervalDyadic_neg1_1, boundedIntervalDyadic, IntervalDyadic.mem_def,
+    Dyadic.toRat_ofInt]
+  exact ⟨by simpa using hlo, by simpa using hhi⟩
+
+/-- tanh x ∈ [-1, 1] for all x ∈ ℝ -/
+private theorem tanh_bounds (x : ℝ) : -1 ≤ Real.tanh x ∧ Real.tanh x ≤ 1 := by
+  constructor
+  -- tanh x ≥ -1: use tanh = sinh/cosh, cosh > 0, and -cosh ≤ sinh
+  · rw [Real.tanh_eq_sinh_div_cosh]
+    have hcosh : Real.cosh x > 0 := Real.cosh_pos x
+    rw [le_div_iff₀ hcosh, neg_one_mul]
+    rw [Real.sinh_eq, Real.cosh_eq]
+    have h1 : Real.exp x > 0 := Real.exp_pos x
+    linarith
+  -- tanh x ≤ 1: use sinh ≤ cosh (since exp(-x) > 0)
+  · rw [Real.tanh_eq_sinh_div_cosh]
+    have hcosh : Real.cosh x > 0 := Real.cosh_pos x
+    rw [div_le_one₀ hcosh]
+    rw [Real.sinh_eq, Real.cosh_eq]
+    have h2 : Real.exp (-x) > 0 := Real.exp_pos (-x)
+    linarith
 
 /-- Fundamental correctness theorem for Dyadic evaluation.
 
@@ -299,67 +344,37 @@ theorem evalIntervalDyadic_correct (e : Expr) (hsupp : ExprSupportedCore e)
     exact IntervalDyadic.mem_neg (ih hdom)
   | sin _ ih =>
     simp only [evalDomainValidDyadic] at hdom
-    simp only [Expr.eval_sin, evalIntervalDyadic, sinIntervalDyadic]
-    have hrat := IntervalDyadic.mem_toIntervalRat.mp (ih hdom)
-    have hsin := IntervalRat.mem_sinComputable hrat cfg.taylorDepth
-    exact IntervalDyadic.mem_ofIntervalRat hsin cfg.precision hprec
+    simp only [Expr.eval_sin, evalIntervalDyadic]
+    exact mem_sinIntervalDyadic (ih hdom) cfg hprec
   | cos _ ih =>
     simp only [evalDomainValidDyadic] at hdom
-    simp only [Expr.eval_cos, evalIntervalDyadic, cosIntervalDyadic]
-    have hrat := IntervalDyadic.mem_toIntervalRat.mp (ih hdom)
-    have hcos := IntervalRat.mem_cosComputable hrat cfg.taylorDepth
-    exact IntervalDyadic.mem_ofIntervalRat hcos cfg.precision hprec
+    simp only [Expr.eval_cos, evalIntervalDyadic]
+    exact mem_cosIntervalDyadic (ih hdom) cfg hprec
   | exp _ ih =>
     simp only [evalDomainValidDyadic] at hdom
-    simp only [Expr.eval_exp, evalIntervalDyadic, expIntervalDyadic]
-    have hrat := IntervalDyadic.mem_toIntervalRat.mp (ih hdom)
-    have hexp := IntervalRat.mem_expComputable hrat cfg.taylorDepth
-    exact IntervalDyadic.mem_ofIntervalRat hexp cfg.precision hprec
+    simp only [Expr.eval_exp, evalIntervalDyadic]
+    exact mem_expIntervalDyadic (ih hdom) cfg hprec
   | sqrt _ ih =>
     simp only [evalDomainValidDyadic] at hdom
     simp only [Expr.eval_sqrt, evalIntervalDyadic, sqrtIntervalDyadic]
     exact IntervalDyadic.mem_sqrt' (ih hdom) cfg.precision
   | sinh _ ih =>
     simp only [evalDomainValidDyadic] at hdom
-    simp only [Expr.eval_sinh, evalIntervalDyadic, sinhIntervalDyadic]
-    have hrat := IntervalDyadic.mem_toIntervalRat.mp (ih hdom)
-    have hsinh := IntervalRat.mem_sinhComputable hrat cfg.taylorDepth
-    exact IntervalDyadic.mem_ofIntervalRat hsinh cfg.precision hprec
+    simp only [Expr.eval_sinh, evalIntervalDyadic]
+    exact mem_sinhIntervalDyadic (ih hdom) cfg hprec
   | cosh _ ih =>
     simp only [evalDomainValidDyadic] at hdom
-    simp only [Expr.eval_cosh, evalIntervalDyadic, coshIntervalDyadic]
-    have hrat := IntervalDyadic.mem_toIntervalRat.mp (ih hdom)
-    have hcosh := IntervalRat.mem_coshComputable hrat cfg.taylorDepth
-    exact IntervalDyadic.mem_ofIntervalRat hcosh cfg.precision hprec
+    simp only [Expr.eval_cosh, evalIntervalDyadic]
+    exact mem_coshIntervalDyadic (ih hdom) cfg hprec
   | @tanh e' _ ih =>
     simp only [evalDomainValidDyadic] at hdom
     simp only [Expr.eval_tanh, evalIntervalDyadic, tanhIntervalDyadic]
-    -- tanh x ∈ [-1, 1] for all x
-    rw [IntervalDyadic.mem_def, Dyadic.toRat_ofInt, Dyadic.toRat_ofInt]
-    simp only [Int.cast_neg, Int.cast_one, Rat.cast_neg, Rat.cast_one]
-    set x := Expr.eval ρ_real e' with hx
-    constructor
-    -- tanh x ≥ -1: use tanh = sinh/cosh, cosh > 0, and -cosh ≤ sinh
-    · rw [Real.tanh_eq_sinh_div_cosh]
-      have hcosh : Real.cosh x > 0 := Real.cosh_pos x
-      rw [le_div_iff₀ hcosh, neg_one_mul]
-      rw [Real.sinh_eq, Real.cosh_eq]
-      have h1 : Real.exp x > 0 := Real.exp_pos x
-      linarith
-    -- tanh x ≤ 1: use sinh ≤ cosh (since exp(-x) > 0)
-    · rw [Real.tanh_eq_sinh_div_cosh]
-      have hcosh : Real.cosh x > 0 := Real.cosh_pos x
-      rw [div_le_one₀ hcosh]
-      rw [Real.sinh_eq, Real.cosh_eq]
-      have h2 : Real.exp (-x) > 0 := Real.exp_pos (-x)
-      linarith
+    have ⟨hlo, hhi⟩ := tanh_bounds (Expr.eval ρ_real e')
+    exact mem_intervalDyadic_neg1_1 hlo hhi
   | @erf e' _ ih =>
     simp only [evalDomainValidDyadic] at hdom
     simp only [Expr.eval_erf, evalIntervalDyadic, erfIntervalDyadic]
-    -- erf x ∈ [-1, 1] for all x
-    rw [IntervalDyadic.mem_def, Dyadic.toRat_ofInt, Dyadic.toRat_ofInt]
-    simp only [Int.cast_neg, Int.cast_one, Rat.cast_neg, Rat.cast_one]
-    exact ⟨Real.neg_one_le_erf _, Real.erf_le_one _⟩
+    exact mem_intervalDyadic_neg1_1 (Real.neg_one_le_erf _) (Real.erf_le_one _)
   | log _ ih =>
     simp only [evalDomainValidDyadic] at hdom
     simp only [Expr.eval_log, evalIntervalDyadic, logIntervalDyadic]

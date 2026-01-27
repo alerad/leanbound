@@ -632,12 +632,61 @@ def evalIntervalCoreWithDiv (e : Expr) (ρ : IntervalEnv) (cfg : EvalConfig := {
 def envMem (ρ_real : Nat → ℝ) (ρ_int : IntervalEnv) : Prop :=
   ∀ i, ρ_real i ∈ ρ_int i
 
+/-! ### Parametric Domain Validity
+
+The following parametric function allows different interval evaluator implementations
+(Core, Dyadic, Affine) to share the same domain validity logic. The only difference
+between implementations is how to extract the lower bound from the evaluated result.
+-/
+
+/-- Generic domain validity predicate parameterized by:
+    - `eval`: The interval evaluator function
+    - `toLo`: Function to extract lower bound from the evaluator's result type
+
+    This captures the common pattern across evalDomainValid, evalDomainValidDyadic,
+    and evalDomainValidAffine. All have identical structure except for the log case
+    which needs to check that the argument's lower bound is positive. -/
+def evalDomainValidParametric {EnvType ConfigType ResultType : Type}
+    (eval : Expr → EnvType → ConfigType → ResultType)
+    (toLo : ResultType → ℚ)
+    (e : Expr) (ρ : EnvType) (cfg : ConfigType) : Prop :=
+  match e with
+  | Expr.const _ => True
+  | Expr.var _ => True
+  | Expr.add e₁ e₂ => evalDomainValidParametric eval toLo e₁ ρ cfg ∧
+                       evalDomainValidParametric eval toLo e₂ ρ cfg
+  | Expr.mul e₁ e₂ => evalDomainValidParametric eval toLo e₁ ρ cfg ∧
+                       evalDomainValidParametric eval toLo e₂ ρ cfg
+  | Expr.neg e => evalDomainValidParametric eval toLo e ρ cfg
+  | Expr.inv e => evalDomainValidParametric eval toLo e ρ cfg
+  | Expr.exp e => evalDomainValidParametric eval toLo e ρ cfg
+  | Expr.sin e => evalDomainValidParametric eval toLo e ρ cfg
+  | Expr.cos e => evalDomainValidParametric eval toLo e ρ cfg
+  | Expr.log e => evalDomainValidParametric eval toLo e ρ cfg ∧ toLo (eval e ρ cfg) > 0
+  | Expr.atan e => evalDomainValidParametric eval toLo e ρ cfg
+  | Expr.arsinh e => evalDomainValidParametric eval toLo e ρ cfg
+  | Expr.atanh e => evalDomainValidParametric eval toLo e ρ cfg
+  | Expr.sinc e => evalDomainValidParametric eval toLo e ρ cfg
+  | Expr.erf e => evalDomainValidParametric eval toLo e ρ cfg
+  | Expr.sinh e => evalDomainValidParametric eval toLo e ρ cfg
+  | Expr.cosh e => evalDomainValidParametric eval toLo e ρ cfg
+  | Expr.tanh e => evalDomainValidParametric eval toLo e ρ cfg
+  | Expr.sqrt e => evalDomainValidParametric eval toLo e ρ cfg
+  | Expr.pi => True
+
+/-- Domain validity for Core evaluator is the parametric version specialized
+    to evalIntervalCore with direct .lo access. -/
+abbrev evalDomainValidCore (e : Expr) (ρ : IntervalEnv) (cfg : EvalConfig := {}) : Prop :=
+  evalDomainValidParametric (fun e' ρ' cfg' => evalIntervalCore e' ρ' cfg') IntervalRat.lo e ρ cfg
+
 /-- Domain validity predicate for expressions with domain restrictions.
 
     For log: requires the argument interval to be strictly positive.
     This ensures that logComputable returns correct bounds.
 
-    For other expressions: always true (no domain restrictions). -/
+    For other expressions: always true (no domain restrictions).
+
+    Note: This is definitionally equal to evalDomainValidCore for backwards compatibility. -/
 def evalDomainValid (e : Expr) (ρ : IntervalEnv) (cfg : EvalConfig := {}) : Prop :=
   match e with
   | Expr.const _ => True

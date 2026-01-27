@@ -177,30 +177,13 @@ def envMemAffine (ρ_real : Nat → ℝ) (ρ_affine : AffineEnv) (eps : AffineFo
   ∀ i, AffineForm.mem_affine (ρ_affine i) eps (ρ_real i)
 
 /-- Domain validity for Affine evaluation.
-    This is defined directly in terms of evalIntervalAffine to ensure compatibility.
+    This uses the parametric domain validity with Affine-specific interval extraction.
     For log, we require the argument's toInterval to have positive lower bound. -/
 def evalDomainValidAffine (e : Expr) (ρ : AffineEnv) (cfg : AffineConfig := {}) : Prop :=
-  match e with
-  | Expr.const _ => True
-  | Expr.var _ => True
-  | Expr.add e₁ e₂ => evalDomainValidAffine e₁ ρ cfg ∧ evalDomainValidAffine e₂ ρ cfg
-  | Expr.mul e₁ e₂ => evalDomainValidAffine e₁ ρ cfg ∧ evalDomainValidAffine e₂ ρ cfg
-  | Expr.neg e => evalDomainValidAffine e ρ cfg
-  | Expr.inv e => evalDomainValidAffine e ρ cfg
-  | Expr.exp e => evalDomainValidAffine e ρ cfg
-  | Expr.sin e => evalDomainValidAffine e ρ cfg
-  | Expr.cos e => evalDomainValidAffine e ρ cfg
-  | Expr.log e => evalDomainValidAffine e ρ cfg ∧ (evalIntervalAffine e ρ cfg).toInterval.lo > 0
-  | Expr.atan e => evalDomainValidAffine e ρ cfg
-  | Expr.arsinh e => evalDomainValidAffine e ρ cfg
-  | Expr.atanh e => evalDomainValidAffine e ρ cfg
-  | Expr.sinc e => evalDomainValidAffine e ρ cfg
-  | Expr.erf e => evalDomainValidAffine e ρ cfg
-  | Expr.sinh e => evalDomainValidAffine e ρ cfg
-  | Expr.cosh e => evalDomainValidAffine e ρ cfg
-  | Expr.tanh e => evalDomainValidAffine e ρ cfg
-  | Expr.sqrt e => evalDomainValidAffine e ρ cfg
-  | Expr.pi => True
+  evalDomainValidParametric
+    (fun e' ρ' cfg' => evalIntervalAffine e' ρ' cfg')
+    (fun af => af.toInterval.lo)
+    e ρ cfg
 
 /-- Domain validity is trivially true for ExprSupported expressions (which exclude log). -/
 theorem evalDomainValidAffine_of_ExprSupported {e : Expr} (hsupp : ExprSupported e)
