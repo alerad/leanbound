@@ -340,3 +340,9 @@ Open an issue before starting major work.
 LeanCert is open source software licensed under the Apache License, Version 2.0.
 
 See [LICENSE](LICENSE) for full terms.
+
+## Maintainer
+
+LeanCert is developed and maintained by [Alejandro Radisic](https://github.com/alerad).
+
+For research collaboration or sponsorship inquiries: aleloid@proton.me
